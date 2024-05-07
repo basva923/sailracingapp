@@ -5,6 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build-github-page": "ng build --base-href /sailracingapp/",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
