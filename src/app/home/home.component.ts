@@ -1,9 +1,11 @@
 import { Component } from '@angular/core';
+import { NgbNavModule } from '@ng-bootstrap/ng-bootstrap';
+import { TimerComponent } from '../timer/timer.component';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [],
+  imports: [TimerComponent, NgbNavModule],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
 })
@@ -12,6 +14,7 @@ export class HomeComponent {
   alpha: number = 0;
   beta: number = 0;
   gamma: number = 0;
+  activeTab = 1;
 
   constructor() {
     window.addEventListener(
