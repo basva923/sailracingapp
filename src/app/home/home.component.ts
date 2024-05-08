@@ -15,7 +15,7 @@ export class HomeComponent {
 
   constructor() {
     window.addEventListener(
-      'deviceorientation',
+      'deviceorientationabsolute',
       (e) => this.handleOrientationChange(e),
       true
     );
