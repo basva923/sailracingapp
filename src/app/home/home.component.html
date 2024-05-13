@@ -1,5 +1,16 @@
-<h1>Heading {{ heading.toFixed(0) }}°</h1>
-<h1>{{ absolute }}</h1>
-<h1>{{ alpha }}</h1>
-<h1>{{ beta }}</h1>
-<h1>{{ gamma }}</h1>
+<ul ngbNav #nav="ngbNav" [(activeId)]="activeTab" class="nav-tabs">
+  <li [ngbNavItem]="1">
+    <button ngbNavLink>Timer</button>
+    <ng-template ngbNavContent>
+      <app-timer />
+    </ng-template>
+  </li>
+  <li [ngbNavItem]="2">
+    <button ngbNavLink>Wind</button>
+    <ng-template ngbNavContent>
+      <app-wind></app-wind>
+    </ng-template>
+  </li>
+</ul>
+
+<div [ngbNavOutlet]="nav" class="mt-2"></div>
