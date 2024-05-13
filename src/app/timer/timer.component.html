@@ -3,7 +3,7 @@
 <h1 class="text-center" style="font-size: 9rem">{{ timeLeft }}</h1>
 
 <div class="row">
-  <div class="col-6 text-left">
+  <div class="col-3 text-left">
     <button
       type="button"
       class="btn"
@@ -16,7 +16,8 @@
       Pin
     </button>
   </div>
-  <div class="col-6 text-end">
+  <div class="col-6 text-center">- {{ distanceBetweenBooys }} -</div>
+  <div class="col-3 text-end">
     <button
       type="button"
       class="btn"
@@ -32,10 +33,21 @@
 </div>
 <hr />
 
-<p class="text-center">Distance to line</p>
-<h1 class="text-center" style="font-size: 5rem">{{ distanceToLine }}</h1>
+<div class="row">
+  <div class="col-6 text-center">Distance to line</div>
+  <div class="col-6 text-center">Time to kill</div>
+</div>
 
 <div class="row">
+  <div class="col-6 text-center">
+    <h1 style="font-size: 5rem">{{ distanceToLine }}</h1>
+  </div>
+  <div class="col-6 text-center">
+    <h1 style="font-size: 5rem">{{ distanceToLine }}</h1>
+  </div>
+</div>
+
+<div class="row mt-5">
   <div class="col-12">
     <button
       type="button"

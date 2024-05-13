@@ -1,5 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
+import { Util } from '../util/util';
+import { UnitToString } from '../util/unit-to-string';
 
 @Component({
   selector: 'app-timer',
@@ -12,8 +14,10 @@ export class TimerComponent {
   startTime: Date | null = null;
   timeLeft: string = '---';
   distanceToLine: string = '---';
+  distanceBetweenBooys: string = 'please set the booys';
   pinEndPosition: GeolocationCoordinates | null = null;
   boadEndPosition: GeolocationCoordinates | null = null;
+  lastPosition: GeolocationCoordinates | null = null;
 
   constructor() {
     const self = this;
@@ -21,6 +25,18 @@ export class TimerComponent {
       self.calcTimeLeft();
       self.calcDistanceToLine();
     }, 500);
+
+    // start gps watch
+    navigator.geolocation.watchPosition(
+      (position) => {
+        self.lastPosition = position.coords;
+        self.calcDistanceToLine();
+      },
+      (error) => {
+        console.error(error);
+      },
+      { enableHighAccuracy: true }
+    );
   }
 
   startInMinutes(minutes: number) {
@@ -56,10 +72,7 @@ export class TimerComponent {
   calcTimeLeft() {
     if (this.startTime) {
       const diff = this.timediffInMilliseconds();
-
-      const minutes = Math.floor(diff / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-      this.timeLeft = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+      this.timeLeft = UnitToString.milisecondsToTime(diff);
     } else {
       // return current time
       const now = new Date();
@@ -79,69 +92,53 @@ export class TimerComponent {
   togglePinEndPositionToCurrentLocation() {
     if (this.pinEndPosition) {
       this.pinEndPosition = null;
-      this.calcDistanceToLine();
     } else {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          this.pinEndPosition = position.coords;
-          this.calcDistanceToLine();
-        },
-        (error) => {},
-        { enableHighAccuracy: true }
-      );
+      this.pinEndPosition = this.lastPosition;
     }
+    this.calcDistanceBetweenBooys();
+    this.calcDistanceToLine();
   }
 
   toggleBoadEndPositionToCurrentLocation() {
     if (this.boadEndPosition) {
       this.boadEndPosition = null;
-      this.calcDistanceToLine();
     } else {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          this.boadEndPosition = position.coords;
-          this.calcDistanceToLine();
-        },
-        (error) => {},
-        { enableHighAccuracy: true }
-      );
+      this.boadEndPosition = this.lastPosition;
     }
+
+    this.calcDistanceBetweenBooys();
+    this.calcDistanceToLine();
   }
 
   calcDistanceToLine() {
-    const self = this;
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        if (self.pinEndPosition && self.boadEndPosition) {
-          self.distanceToLine =
-            this.distancePointToLine(
-              position.coords.latitude,
-              position.coords.longitude,
-              self.pinEndPosition.latitude,
-              self.pinEndPosition.longitude,
-              self.boadEndPosition.latitude,
-              self.boadEndPosition.longitude
-            ).toFixed(0) + 'm';
-        } else {
-          this.distanceToLine = '---';
-        }
-      },
-      (error) => {},
-      { enableHighAccuracy: true }
-    );
+    if (this.pinEndPosition && this.boadEndPosition && this.lastPosition) {
+      this.distanceToLine = UnitToString.metersToString(
+        Util.distancePointToLine(
+          this.lastPosition.latitude,
+          this.lastPosition.longitude,
+          this.pinEndPosition.latitude,
+          this.pinEndPosition.longitude,
+          this.boadEndPosition.latitude,
+          this.boadEndPosition.longitude
+        )
+      );
+    } else {
+      this.distanceToLine = '---';
+    }
   }
 
-  distancePointToLine(
-    x0: number,
-    y0: number,
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number
-  ) {
-    return (
-      Math.abs((x2 - x1) * (y1 - y0) - (x1 - x0) * (y2 - y1)) /
-      Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
-    );
+  calcDistanceBetweenBooys() {
+    if (this.pinEndPosition && this.boadEndPosition) {
+      this.distanceBetweenBooys = UnitToString.metersToString(
+        Util.haversineDistanceBetweenPoints(
+          this.pinEndPosition.latitude,
+          this.pinEndPosition.longitude,
+          this.boadEndPosition.latitude,
+          this.boadEndPosition.longitude
+        )
+      );
+    } else {
+      this.distanceBetweenBooys = 'please set the booys';
+    }
   }
 }
