@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { Util } from '../util/util';
 import { UnitToString } from '../util/unit-to-string';
+import { TimerService } from '../services/timer.service';
+import { StartlineService } from '../services/startline.service';
 
 @Component({
   selector: 'app-timer',
@@ -11,67 +13,42 @@ import { UnitToString } from '../util/unit-to-string';
   styleUrl: './timer.component.css',
 })
 export class TimerComponent {
-  startTime: Date | null = null;
   timeLeft: string = '---';
   distanceToLine: string = '---';
   distanceBetweenBooys: string = 'please set the booys';
-  pinEndPosition: GeolocationCoordinates | null = null;
-  boadEndPosition: GeolocationCoordinates | null = null;
   lastPosition: GeolocationCoordinates | null = null;
 
-  constructor() {
+  constructor(
+    private timerService: TimerService,
+    protected startLineService: StartlineService
+  ) {
     const self = this;
     setInterval(() => {
       self.calcTimeLeft();
       self.calcDistanceToLine();
     }, 500);
-
-    // start gps watch
-    navigator.geolocation.watchPosition(
-      (position) => {
-        self.lastPosition = position.coords;
-        self.calcDistanceToLine();
-      },
-      (error) => {
-        console.error(error);
-      },
-      { enableHighAccuracy: true }
-    );
   }
 
   startInMinutes(minutes: number) {
-    this.startTime = new Date();
-    this.startTime.setMinutes(this.startTime.getMinutes() + minutes);
+    this.timerService.startInMinutes(minutes);
     this.calcTimeLeft();
   }
 
   syncToClosestMinute() {
-    const now = new Date();
-    if (this.startTime) {
-      const secondsOfMinute = Math.floor(
-        (this.timediffInMilliseconds() % 60000) / 1000
-      );
-      if (secondsOfMinute >= 30) {
-        this.startTime.setSeconds(
-          this.startTime.getSeconds() + 60 - secondsOfMinute
-        );
-      } else {
-        this.startTime.setSeconds(
-          this.startTime.getSeconds() - secondsOfMinute
-        );
-      }
-    }
+    this.timerService.syncToClosestMinute();
     this.calcTimeLeft();
   }
 
   reset() {
-    this.startTime = null;
-    this.calcTimeLeft();
+    if (confirm('Are you sure to stop the timer?')) {
+      this.timerService.reset();
+      this.calcTimeLeft();
+    }
   }
 
   calcTimeLeft() {
-    if (this.startTime) {
-      const diff = this.timediffInMilliseconds();
+    const diff = this.timerService.milliSecondsLeft;
+    if (diff) {
       this.timeLeft = UnitToString.milisecondsToTime(diff);
     } else {
       // return current time
@@ -80,47 +57,30 @@ export class TimerComponent {
     }
   }
 
-  private timediffInMilliseconds(): number {
-    if (this.startTime) {
-      const now = new Date();
-      const diff = Math.abs(this.startTime.getTime() - now.getTime());
-      return diff;
-    }
-    return 0;
-  }
-
   togglePinEndPositionToCurrentLocation() {
-    if (this.pinEndPosition) {
-      this.pinEndPosition = null;
+    if (this.startLineService.pinEndSet) {
+      this.startLineService.clearPinEndPosition();
     } else {
-      this.pinEndPosition = this.lastPosition;
+      this.startLineService.setPinEndPosition();
     }
     this.calcDistanceBetweenBooys();
     this.calcDistanceToLine();
   }
 
   toggleBoadEndPositionToCurrentLocation() {
-    if (this.boadEndPosition) {
-      this.boadEndPosition = null;
+    if (this.startLineService.boadEndSet) {
+      this.startLineService.clearBoadEndPosition();
     } else {
-      this.boadEndPosition = this.lastPosition;
+      this.startLineService.setBoadEndPosition();
     }
-
     this.calcDistanceBetweenBooys();
     this.calcDistanceToLine();
   }
 
   calcDistanceToLine() {
-    if (this.pinEndPosition && this.boadEndPosition && this.lastPosition) {
+    if (this.startLineService.distanceToLine) {
       this.distanceToLine = UnitToString.metersToString(
-        Util.distancePointToLine(
-          this.lastPosition.latitude,
-          this.lastPosition.longitude,
-          this.pinEndPosition.latitude,
-          this.pinEndPosition.longitude,
-          this.boadEndPosition.latitude,
-          this.boadEndPosition.longitude
-        )
+        this.startLineService.distanceToLine
       );
     } else {
       this.distanceToLine = '---';
@@ -128,14 +88,9 @@ export class TimerComponent {
   }
 
   calcDistanceBetweenBooys() {
-    if (this.pinEndPosition && this.boadEndPosition) {
+    if (this.startLineService.startLineLength) {
       this.distanceBetweenBooys = UnitToString.metersToString(
-        Util.haversineDistanceBetweenPoints(
-          this.pinEndPosition.latitude,
-          this.pinEndPosition.longitude,
-          this.boadEndPosition.latitude,
-          this.boadEndPosition.longitude
-        )
+        this.startLineService.startLineLength
       );
     } else {
       this.distanceBetweenBooys = 'please set the booys';

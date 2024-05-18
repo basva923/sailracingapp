@@ -1,6 +1,5 @@
-<p class="text-center" *ngIf="startTime">Time to start</p>
-<p class="text-center" *ngIf="startTime == null">Current time</p>
-<h1 class="text-center" style="font-size: 9rem">{{ timeLeft }}</h1>
+<p class="text-center">Time to start</p>
+<h1 class="text-center wvtimer">{{ timeLeft }}</h1>
 
 <div class="row">
   <div class="col-3 text-left">
@@ -8,8 +7,8 @@
       type="button"
       class="btn"
       [ngClass]="{
-        'btn-success': pinEndPosition,
-        'btn-danger': !pinEndPosition
+        'btn-success': startLineService.pinEndSet,
+        'btn-danger': !startLineService.pinEndSet
       }"
       (click)="togglePinEndPositionToCurrentLocation()"
     >
@@ -22,8 +21,8 @@
       type="button"
       class="btn"
       [ngClass]="{
-        'btn-success': boadEndPosition,
-        'btn-danger': !boadEndPosition
+        'btn-success': startLineService.boadEndSet,
+        'btn-danger': !startLineService.boadEndSet
       }"
       (click)="toggleBoadEndPositionToCurrentLocation()"
     >
@@ -40,10 +39,10 @@
 
 <div class="row">
   <div class="col-6 text-center">
-    <h1 style="font-size: 5rem">{{ distanceToLine }}</h1>
+    <p class="wvhalfscreen">{{ distanceToLine }}</p>
   </div>
   <div class="col-6 text-center">
-    <h1 style="font-size: 5rem">{{ distanceToLine }}</h1>
+    <p class="wvhalfscreen">{{ distanceToLine }}</p>
   </div>
 </div>
 

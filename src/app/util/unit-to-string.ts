@@ -9,9 +9,9 @@ export class UnitToString {
     const days = Math.floor(ms / (1000 * 60 * 60 * 24));
     return (
       (days > 0 ? days + 'd ' : '') +
-      (hours > 0 ? hours + 'h ' : '') +
-      (minutes > 0 ? minutes + 'm ' : '') +
-      (seconds > 0 ? seconds + 's' : '')
+      (hours > 0 ? hours + ':' : '') +
+      (minutes >= 0 ? minutes + ':' : '') +
+      (seconds >= 0 ? seconds + '' : '')
     );
   }
 
