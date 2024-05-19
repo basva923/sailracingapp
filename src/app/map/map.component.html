@@ -1,0 +1,19 @@
+<div
+  style="height: 90vh"
+  leaflet
+  [(leafletCenter)]="center"
+  [leafletOptions]="options"
+  [leafletLayers]="layers"
+  (leafletMapReady)="onMapReady($event)"
+>
+  >
+</div>
+
+<button
+  *ngIf="moved"
+  type="button"
+  class="btn btn-primary fixed-bottom fixed-right"
+  (click)="setCenterToCurrentLocation()"
+>
+  Center
+</button>

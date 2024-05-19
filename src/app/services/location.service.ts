@@ -1,10 +1,19 @@
 import { Injectable } from '@angular/core';
 
+class LocationEvent extends Event {
+  location: GeolocationPosition;
+  constructor(location: GeolocationPosition) {
+    super('newLocation');
+    this.location = location;
+  }
+}
+
 @Injectable({
   providedIn: 'root',
 })
 export class LocationService {
   private locations: GeolocationPosition[] = [];
+  public currentLocationEvent = new EventTarget();
 
   constructor() {
     // start gps watch
@@ -12,12 +21,21 @@ export class LocationService {
     navigator.geolocation.watchPosition(
       (position) => {
         self.locations.push(position);
+        self.currentLocationEvent.dispatchEvent(new LocationEvent(position));
       },
       (error) => {
         console.error(error);
       },
       { enableHighAccuracy: true }
     );
+  }
+
+  public subscribeForLocation(
+    callback: (location: GeolocationPosition) => void
+  ) {
+    this.currentLocationEvent.addEventListener('newLocation', (event) => {
+      callback((event as LocationEvent).location);
+    });
   }
 
   get curCoordinates(): GeolocationCoordinates | null {
@@ -76,5 +94,9 @@ export class LocationService {
       sumSpeed += this.locations[i].coords.speed || 0;
     }
     return sumSpeed / this.locations.length;
+  }
+
+  get coordinatesLog(): GeolocationCoordinates[] {
+    return this.locations.map((location) => location.coords);
   }
 }
