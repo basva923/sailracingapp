@@ -37,7 +37,7 @@ export class WindComponent {
       this.locationService.heading
     );
     this.calculatedWindDirectionText = UnitToString.degreesToString(
-      this.windService.calculatedWindDirection
+      this.windService.getCalculatedWindDirection()
     );
     this.speedText = UnitToString.metersPerSecondToKnots(
       this.locationService.curSpeed ? this.locationService.curSpeed : 0

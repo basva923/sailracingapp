@@ -34,7 +34,7 @@ export class WindService {
     return this.windDirection;
   }
 
-  get calculatedWindDirection() {
+  getCalculatedWindDirection() {
     const angleToTheWind = Util.normaliseDegrees(
       this.locationService.heading - this.windDirection
     );
