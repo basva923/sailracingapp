@@ -27,6 +27,9 @@ export class WindComponent {
     locationService.subscribeForLocation((location: GeolocationPosition) => {
       self.handleUpdate();
     });
+    setInterval(() => {
+      self.handleUpdate();
+    }, 100);
   }
 
   handleUpdate() {
