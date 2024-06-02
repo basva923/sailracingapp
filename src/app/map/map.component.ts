@@ -28,6 +28,7 @@ export class MapComponent {
       }),
     ],
     zoom: 16,
+    center: latLng(0, 0),
   };
 
   center = latLng(0, 0);
@@ -52,6 +53,13 @@ export class MapComponent {
         );
       }
     });
+  }
+
+  ngAfterViewInit() {
+    const self = this;
+    setTimeout(() => {
+      self.map?.invalidateSize();
+    }, 300);
   }
 
   onMapReady(map: Map) {
