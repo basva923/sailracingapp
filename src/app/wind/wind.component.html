@@ -1,5 +1,61 @@
-<h1>Heading {{ heading.toFixed(0) }}°</h1>
-<h1>{{ absolute }}</h1>
-<h1>{{ alpha }}</h1>
-<h1>{{ beta }}</h1>
-<h1>{{ gamma }}</h1>
+<p class="text-center">Speed</p>
+<h1 class="text-center wvfullscreen">{{ speedText }}</h1>
+
+<p class="text-center">Calculated wind</p>
+<h1 class="text-center wvfullscreen">{{ calculatedWindDirectionText }}</h1>
+
+<div class="row">
+  <div class="col-6 text-center">Heading</div>
+  <div class="col-6 text-center">Configured wind</div>
+</div>
+
+<div class="row">
+  <div class="col-6 text-center">
+    <p class="wvhalfscreen">{{ headingText }}</p>
+  </div>
+  <div class="col-6 text-center">
+    <p class="wvhalfscreen">{{ configuredWindText }}</p>
+  </div>
+</div>
+
+<div class="row mt-5">
+  <div class="col-6 text-center">
+    <button
+      type="button"
+      class="btn btn-primary btn-lg w-100"
+      (click)="setStarboardTack()"
+    >
+      Set startboard
+    </button>
+  </div>
+  <div class="col-6 text-center">
+    <button
+      type="button"
+      class="btn btn-primary btn-lg w-100"
+      (click)="setPortTack()"
+    >
+      Set port
+    </button>
+  </div>
+</div>
+
+<div class="row mt-3">
+  <div class="col-6 text-center">
+    <button
+      type="button"
+      class="btn btn-warning btn-lg w-100"
+      (click)="configureWind()"
+    >
+      Wind
+    </button>
+  </div>
+  <div class="col-6 text-center">
+    <button
+      type="button"
+      class="btn btn-warning btn-lg w-100"
+      (click)="configureAngleOfAttack()"
+    >
+      Attack
+    </button>
+  </div>
+</div>

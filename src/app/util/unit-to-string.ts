@@ -22,4 +22,8 @@ export class UnitToString {
   static metersToNauticalMiles(m: number): string {
     return (m / 1852).toFixed(2) + 'nm';
   }
+
+  static degreesToString(degrees: number): string {
+    return degrees.toFixed(0) + '°';
+  }
 }

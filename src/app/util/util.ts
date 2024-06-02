@@ -31,4 +31,8 @@ export class Util {
       ) * R;
     return d;
   }
+
+  static normaliseDegrees(degrees: number) {
+    return ((degrees % 360) + 360) % 360;
+  }
 }

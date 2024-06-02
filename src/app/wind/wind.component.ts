@@ -1,4 +1,7 @@
 import { Component } from '@angular/core';
+import { LocationService } from '../services/location.service';
+import { WindService } from '../services/wind.service';
+import { UnitToString } from '../util/unit-to-string';
 
 @Component({
   selector: 'app-wind',
@@ -8,57 +11,64 @@ import { Component } from '@angular/core';
   styleUrl: './wind.component.css',
 })
 export class WindComponent {
-  absolute = false;
-  alpha: number = 0;
-  beta: number = 0;
-  gamma: number = 0;
+  setWind() {
+    throw new Error('Method not implemented.');
+  }
+  headingText: string = '360°';
+  calculatedWindDirectionText: string = '360°';
+  speedText: string = '00kt';
+  configuredWindText: string = '360°';
 
-  constructor() {
-    window.addEventListener(
-      'deviceorientationabsolute',
-      (e) => this.handleOrientationChange(e),
-      true
+  constructor(
+    private locationService: LocationService,
+    private windService: WindService
+  ) {
+    const self = this;
+    locationService.subscribeForLocation((location: GeolocationPosition) => {
+      self.handleUpdate();
+    });
+  }
+
+  handleUpdate() {
+    this.headingText = UnitToString.degreesToString(
+      this.locationService.heading
+    );
+    this.calculatedWindDirectionText = UnitToString.degreesToString(
+      this.windService.calculatedWindDirection
+    );
+    this.speedText = UnitToString.metersPerSecondToKnots(
+      this.locationService.curSpeed ? this.locationService.curSpeed : 0
+    );
+
+    this.configuredWindText = UnitToString.degreesToString(
+      this.windService.getWindDirection()
     );
   }
 
-  handleOrientationChange(event: DeviceOrientationEvent) {
-    this.absolute = event.absolute;
-    if (event.alpha != null) this.alpha = event.alpha;
-    if (event.beta != null) this.beta = event.beta;
-    if (event.gamma != null) this.gamma = event.gamma;
+  setPortTack() {
+    this.windService.setPortTack();
+    this.handleUpdate();
   }
 
-  get heading() {
-    // Convert degrees to radians
-    var alphaRad = this.alpha * (Math.PI / 180);
-    var betaRad = this.beta * (Math.PI / 180);
-    var gammaRad = this.gamma * (Math.PI / 180);
+  setStarboardTack() {
+    this.windService.setStarboardTack();
+    this.handleUpdate();
+  }
 
-    // Calculate equation components
-    var cA = Math.cos(alphaRad);
-    var sA = Math.sin(alphaRad);
-    var cB = Math.cos(betaRad);
-    var sB = Math.sin(betaRad);
-    var cG = Math.cos(gammaRad);
-    var sG = Math.sin(gammaRad);
+  configureWind() {
+    const windDirection = Number(
+      prompt('Enter wind direction in degrees', '0')
+    );
 
-    // Calculate A, B, C rotation components
-    var rA = -cA * sG - sA * sB * cG;
-    var rB = -sA * sG + cA * sB * cG;
-    var rC = -cB * cG;
+    this.windService.setWindDirection(windDirection);
+    this.handleUpdate();
+  }
 
-    // Calculate compass heading
-    var compassHeading = Math.atan(rA / rB);
-
-    // Convert from half unit circle to whole unit circle
-    if (rB < 0) {
-      compassHeading += Math.PI;
-    } else if (rA < 0) {
-      compassHeading += 2 * Math.PI;
-    }
-
-    // Convert radians to degrees
-    compassHeading *= 180 / Math.PI;
-    return compassHeading;
+  configureAngleOfAttack() {
+    const angleOfAttack = Number(
+      prompt('Enter angle of attack in degrees', '45')
+    );
+    this.windService.angleOfAttack = angleOfAttack;
+    this.handleUpdate();
   }
 }
