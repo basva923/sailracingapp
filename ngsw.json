@@ -1,6 +1,6 @@
 {
   "configVersion": 1,
-  "timestamp": 1717356903062,
+  "timestamp": 1717360880380,
   "index": "/sailracingapp/index.html",
   "assetGroups": [
     {
@@ -13,7 +13,7 @@
       "urls": [
         "/sailracingapp/favicon.ico",
         "/sailracingapp/index.html",
-        "/sailracingapp/main-ESFFTBTN.js",
+        "/sailracingapp/main-SSMR6VQS.js",
         "/sailracingapp/manifest.webmanifest",
         "/sailracingapp/polyfills-TGHGEAFK.js",
         "/sailracingapp/styles-TXJAKZMR.css"
@@ -54,8 +54,8 @@
     "/sailracingapp/assets/icons/icon-72x72.png": "aa88a6096bd973be7f6d7a5489bfa6bc2463f8c4",
     "/sailracingapp/assets/icons/icon-96x96.png": "7fb8f59c30ce2ff12c700321a0b39e14b3dc8f95",
     "/sailracingapp/favicon.ico": "9c39f434fe1261f68c5e3eefdf734630d99c5670",
-    "/sailracingapp/index.html": "fffa8934f268cde636a4c3e32580161df5286c5e",
-    "/sailracingapp/main-ESFFTBTN.js": "30d8749e8fc1e2634af276051ca824c39527ede7",
+    "/sailracingapp/index.html": "cd652befbe684a02514f106d9002fe7aba2e0b9d",
+    "/sailracingapp/main-SSMR6VQS.js": "8353009877279813643fd278a4ea351736c1de56",
     "/sailracingapp/manifest.webmanifest": "2ef185a89c0045fe6de7bb27bd70303b8e0c0071",
     "/sailracingapp/media/layers-2x-TBM42ERR.png": "152a162333e46d24f9d89f566312fc0c64011dee",
     "/sailracingapp/media/layers-55W3Q4RM.png": "c9e7528e491a39232ba24a2706c6c739d6fb0f06",
