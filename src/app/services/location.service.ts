@@ -19,6 +19,8 @@ export class LocationService {
   private beta: number = 0;
   private gamma: number = 0;
 
+  private reversedPhone = false;
+
   constructor() {
     // start gps watch
     const self = this;
@@ -76,6 +78,9 @@ export class LocationService {
       compassHeading += 2 * Math.PI;
     }
 
+    if (this.reversedPhone) {
+      compassHeading += compassHeading >= Math.PI ? -Math.PI : Math.PI;
+    }
     // Convert radians to degrees
     compassHeading *= 180 / Math.PI;
     return compassHeading;
@@ -87,6 +92,14 @@ export class LocationService {
     this.currentLocationEvent.addEventListener('newLocation', (event) => {
       callback((event as LocationEvent).location);
     });
+  }
+
+  set phoneIsPointingForward(pointingForward: boolean) {
+    this.reversedPhone = !pointingForward;
+  }
+
+  get phoneIsPointingForward() {
+    return !this.reversedPhone;
   }
 
   get curCoordinates(): GeolocationCoordinates | null {

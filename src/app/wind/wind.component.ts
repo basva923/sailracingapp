@@ -74,4 +74,9 @@ export class WindComponent {
     this.windService.angleOfAttack = angleOfAttack;
     this.handleUpdate();
   }
+
+  reservePhone() {
+    this.locationService.phoneIsPointingForward =
+      !this.locationService.phoneIsPointingForward;
+  }
 }
