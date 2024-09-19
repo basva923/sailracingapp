@@ -2,11 +2,12 @@ import { Component } from '@angular/core';
 import { LocationService } from '../services/location.service';
 import { WindService } from '../services/wind.service';
 import { UnitToString } from '../util/unit-to-string';
+import { NgApexchartsModule } from 'ng-apexcharts';
 
 @Component({
   selector: 'app-wind',
   standalone: true,
-  imports: [],
+  imports: [NgApexchartsModule],
   templateUrl: './wind.component.html',
   styleUrl: './wind.component.css',
 })

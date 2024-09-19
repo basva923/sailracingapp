@@ -8,10 +8,13 @@ import { Util } from '../util/util';
 export class WindService {
   private windDirection: number = 0;
   public angleOfAttack: number = 45;
+  private windDirectionHistory: number[] = [];
+  private readonly HISTORY_SIZE = 300;
 
   constructor(private locationService: LocationService) {
     const self = this;
     locationService.subscribeForLocation((location: GeolocationPosition) => {});
+    setInterval(this.logWind, 1000);
   }
 
   setPortTack() {
@@ -34,6 +37,14 @@ export class WindService {
     return this.windDirection;
   }
 
+  logWind() {
+    this.windDirectionHistory.push(this.getCalculatedWindDirection());
+    this.windDirectionHistory = this.windDirectionHistory.slice(
+      -this.HISTORY_SIZE,
+      this.windDirectionHistory.length
+    );
+  }
+
   getCalculatedWindDirection() {
     const angleToTheWind = Util.normaliseDegrees(
       this.locationService.heading - this.windDirection
@@ -47,5 +58,9 @@ export class WindService {
     return Util.normaliseDegrees(
       this.locationService.heading - this.angleOfAttack
     );
+  }
+
+  getWindDirectionHistory() {
+    return this.windDirectionHistory;
   }
 }
