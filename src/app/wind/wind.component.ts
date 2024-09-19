@@ -9,6 +9,7 @@ import {
   ApexTitleSubtitle,
   ApexChart,
   ApexXAxis,
+  ApexYAxis,
 } from 'ng-apexcharts';
 import { ViewChild } from '@angular/core';
 
@@ -17,6 +18,7 @@ export type ChartOptions = {
   chart: ApexChart;
   title: ApexTitleSubtitle;
   xaxis: ApexXAxis;
+  yaxis: ApexYAxis;
 };
 
 @Component({
@@ -57,6 +59,7 @@ export class WindComponent {
         text: 'Wind Directorion',
       },
       xaxis: { labels: { show: false } },
+      yaxis: { decimalsInFloat: 0 },
     };
 
     locationService.subscribeForLocation((location: GeolocationPosition) => {
