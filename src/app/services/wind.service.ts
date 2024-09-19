@@ -14,7 +14,7 @@ export class WindService {
   constructor(private locationService: LocationService) {
     const self = this;
     locationService.subscribeForLocation((location: GeolocationPosition) => {});
-    setInterval(this.logWind, 1000);
+    setInterval(() => self.logWind(), 1000);
   }
 
   setPortTack() {

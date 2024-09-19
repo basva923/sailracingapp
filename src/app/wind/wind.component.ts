@@ -2,7 +2,22 @@ import { Component } from '@angular/core';
 import { LocationService } from '../services/location.service';
 import { WindService } from '../services/wind.service';
 import { UnitToString } from '../util/unit-to-string';
-import { NgApexchartsModule } from 'ng-apexcharts';
+import {
+  NgApexchartsModule,
+  ChartComponent,
+  ApexAxisChartSeries,
+  ApexTitleSubtitle,
+  ApexChart,
+  ApexXAxis,
+} from 'ng-apexcharts';
+import { ViewChild } from '@angular/core';
+
+export type ChartOptions = {
+  series: ApexAxisChartSeries;
+  chart: ApexChart;
+  title: ApexTitleSubtitle;
+  xaxis: ApexXAxis;
+};
 
 @Component({
   selector: 'app-wind',
@@ -12,6 +27,9 @@ import { NgApexchartsModule } from 'ng-apexcharts';
   styleUrl: './wind.component.css',
 })
 export class WindComponent {
+  @ViewChild('chart', { static: false }) chart!: ChartComponent;
+  public chartOptions: Partial<ChartOptions>;
+
   setWind() {
     throw new Error('Method not implemented.');
   }
@@ -25,6 +43,22 @@ export class WindComponent {
     private windService: WindService
   ) {
     const self = this;
+    this.chartOptions = {
+      series: [
+        {
+          name: 'Wind Direction',
+          data: [44, 55, 13, 33],
+        },
+      ],
+      chart: {
+        type: 'line',
+      },
+      title: {
+        text: 'Wind Directorion',
+      },
+      xaxis: { labels: { show: false } },
+    };
+
     locationService.subscribeForLocation((location: GeolocationPosition) => {
       self.handleUpdate();
     });
@@ -47,6 +81,13 @@ export class WindComponent {
     this.configuredWindText = UnitToString.degreesToString(
       this.windService.getWindDirection()
     );
+
+    this.chartOptions.series = [
+      {
+        name: 'Wind Direction',
+        data: this.windService.getWindDirectionHistory().slice(-60),
+      },
+    ];
   }
 
   setPortTack() {
@@ -79,5 +120,11 @@ export class WindComponent {
   reservePhone() {
     this.locationService.phoneIsPointingForward =
       !this.locationService.phoneIsPointingForward;
+  }
+
+  get title() {
+    return {
+      text: 'My First Angular Chart',
+    };
   }
 }

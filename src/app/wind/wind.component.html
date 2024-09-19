@@ -18,6 +18,17 @@
   </div>
 </div>
 
+<div class="row mt-3">
+  <div class="col">
+    <apx-chart
+      [series]="chartOptions.series"
+      [chart]="chartOptions.chart"
+      [title]="chartOptions.title"
+      [xaxis]="chartOptions.xaxis"
+    ></apx-chart>
+  </div>
+</div>
+
 <div class="row mt-5">
   <div class="col-6 text-center">
     <button
