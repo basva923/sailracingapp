@@ -36,7 +36,7 @@ export class Util {
     lat3: number,
     lon3: number
   ) {
-    const R = 6371; // Earth's radius in kilometers
+    const R = 6371 * 1000; // Earth's radius in meters
 
     // Distance between point A (lat1, lon1) and point P (lat3, lon3)
     const d13 = this.haversineDistanceBetweenPoints(lat1, lon1, lat3, lon3);
@@ -48,7 +48,7 @@ export class Util {
     // Cross-track distance formula
     const dXt = Math.asin(Math.sin(d13 / R) * Math.sin(θ13 - θ12)) * R;
 
-    return Math.abs(dXt); // Return the distance in kilometers
+    return Math.abs(dXt); // Return the distance in meters
   }
 
   static haversineDistanceBetweenPoints(
@@ -57,7 +57,7 @@ export class Util {
     lat2: number,
     lon2: number
   ) {
-    const R = 6371; // Earth's radius in kilometers
+    const R = 6371 * 1000; // Earth's radius in meter
     const dLat = this.toRadians(lat2 - lat1);
     const dLon = this.toRadians(lon2 - lon1);
     const lat1Rad = this.toRadians(lat1);
@@ -71,7 +71,7 @@ export class Util {
         Math.sin(dLon / 2);
 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Distance in kilometers
+    return R * c; // Distance in meter
   }
 
   static normaliseDegrees(degrees: number) {
