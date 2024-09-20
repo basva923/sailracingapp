@@ -56,7 +56,7 @@ export class StartlineService {
     ) {
       return null;
     }
-    return Util.distancePointToLine(
+    return Util.crossTrackDistance(
       this.locationService.curLatitude,
       this.locationService.curLongitude,
       this.pinEndPosition.latitude,
