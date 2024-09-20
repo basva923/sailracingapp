@@ -26,6 +26,7 @@ export class TimerComponent {
     setInterval(() => {
       self.calcTimeLeft();
       self.calcDistanceToLine();
+      self.calcDistanceBetweenBooys();
     }, 500);
   }
 

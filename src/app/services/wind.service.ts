@@ -9,7 +9,7 @@ export class WindService {
   private windDirection: number = 0;
   public angleOfAttack: number = 45;
   private windDirectionHistory: number[] = [];
-  private readonly HISTORY_SIZE = 300;
+  private readonly HISTORY_SIZE = 30000;
 
   constructor(private locationService: LocationService) {
     const self = this;
@@ -61,6 +61,6 @@ export class WindService {
   }
 
   getWindDirectionHistory() {
-    return this.windDirectionHistory;
+    return this.windDirectionHistory.slice(-1000);
   }
 }
