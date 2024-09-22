@@ -9,15 +9,6 @@
   <div class="col-6 text-center">Configured wind</div>
 </div>
 
-<div class="row">
-  <div class="col-6 text-center">
-    <p class="wvhalfscreen">{{ headingText }}</p>
-  </div>
-  <div class="col-6 text-center">
-    <p class="wvhalfscreen">{{ configuredWindText }}</p>
-  </div>
-</div>
-
 <div class="row mt-3">
   <div class="col">
     <apx-chart
@@ -27,6 +18,15 @@
       [xaxis]="chartOptions.xaxis"
       [yaxis]="chartOptions.yaxis"
     ></apx-chart>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-6 text-center">
+    <p class="wvhalfscreen">{{ headingText }}</p>
+  </div>
+  <div class="col-6 text-center">
+    <p class="wvhalfscreen">{{ configuredWindText }}</p>
   </div>
 </div>
 

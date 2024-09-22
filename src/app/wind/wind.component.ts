@@ -88,7 +88,7 @@ export class WindComponent {
     this.chartOptions.series = [
       {
         name: 'Wind Direction',
-        data: this.windService.getWindDirectionHistory().slice(-60),
+        data: this.windService.getWindDirectionHistory().slice(-30),
       },
     ];
   }
