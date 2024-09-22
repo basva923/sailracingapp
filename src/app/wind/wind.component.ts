@@ -31,7 +31,7 @@ export type ChartOptions = {
 export class WindComponent {
   // @ViewChild('chart', { static: false }) char  t!: ChartComponent;
   public chartOptions: Partial<ChartOptions>;
-  public chartOptionsWF: Partial<ChartOptions>;
+  // public chartOptionsWF: Partial<ChartOptions>;
 
   setWind() {
     throw new Error('Method not implemented.');
@@ -62,22 +62,22 @@ export class WindComponent {
       xaxis: { labels: { show: false } },
       yaxis: { decimalsInFloat: 0 },
     };
-    this.chartOptionsWF = {
-      series: [
-        {
-          name: 'Wind Direction Frequency',
-          data: [44, 55, 13, 33],
-        },
-      ],
-      chart: {
-        type: 'line',
-      },
-      title: {
-        text: 'Wind Directorion Frequency',
-      },
-      xaxis: { labels: { show: true, hideOverlappingLabels: true } },
-      yaxis: { decimalsInFloat: 0 },
-    };
+    // this.chartOptionsWF = {
+    //   series: [
+    //     {
+    //       name: 'Wind Direction Frequency',
+    //       data: [44, 55, 13, 33],
+    //     },
+    //   ],
+    //   chart: {
+    //     type: 'line',
+    //   },
+    //   title: {
+    //     text: 'Wind Directorion Frequency',
+    //   },
+    //   xaxis: { labels: { show: true, hideOverlappingLabels: true } },
+    //   yaxis: { decimalsInFloat: 0 },
+    // };
 
     locationService.subscribeForLocation((location: GeolocationPosition) => {
       self.handleUpdate();
@@ -109,12 +109,12 @@ export class WindComponent {
       },
     ];
 
-    this.chartOptionsWF.series = [
-      {
-        name: 'Wind Direction Frequency',
-        data: this.windService.getWindDirectionFrequency(),
-      },
-    ];
+    // this.chartOptionsWF.series = [
+    //   {
+    //     name: 'Wind Direction Frequency',
+    //     data: this.windService.getWindDirectionFrequency(),
+    //   },
+    // ];
   }
 
   setPortTack() {
