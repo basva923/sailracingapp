@@ -10,9 +10,11 @@ export class WindService {
   public angleOfAttack: number = 45;
   private windDirectionHistory: number[] = [];
   private readonly HISTORY_SIZE = 30000;
+  private windDirectionFrequency: number[] = [];
 
   constructor(private locationService: LocationService) {
     const self = this;
+    this.resetWindDirectionFrequency();
     locationService.subscribeForLocation((location: GeolocationPosition) => {});
     setInterval(() => self.logWind(), 1000);
   }
@@ -43,6 +45,9 @@ export class WindService {
       -this.HISTORY_SIZE,
       this.windDirectionHistory.length
     );
+    this.windDirectionFrequency[
+      this.scaleWind(this.getCalculatedWindDirection())
+    ] += 1;
   }
 
   getCalculatedWindDirection() {
@@ -62,5 +67,20 @@ export class WindService {
 
   getWindDirectionHistory() {
     return this.windDirectionHistory.slice(-1000);
+  }
+
+  getWindDirectionFrequency() {
+    return this.windDirectionFrequency;
+  }
+
+  resetWindDirectionFrequency() {
+    this.windDirectionFrequency = [];
+    for (let i = 0; i < this.scaleWind(360); i++) {
+      this.windDirectionFrequency.push(0);
+    }
+  }
+
+  private scaleWind(d: number) {
+    return Math.floor(d / 2);
   }
 }

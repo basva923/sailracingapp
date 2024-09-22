@@ -29,8 +29,9 @@ export type ChartOptions = {
   styleUrl: './wind.component.css',
 })
 export class WindComponent {
-  @ViewChild('chart', { static: false }) chart!: ChartComponent;
+  // @ViewChild('chart', { static: false }) char  t!: ChartComponent;
   public chartOptions: Partial<ChartOptions>;
+  public chartOptionsWF: Partial<ChartOptions>;
 
   setWind() {
     throw new Error('Method not implemented.');
@@ -48,7 +49,7 @@ export class WindComponent {
     this.chartOptions = {
       series: [
         {
-          name: 'Wind Direction',
+          name: 'Wind Direction History',
           data: [44, 55, 13, 33],
         },
       ],
@@ -56,9 +57,25 @@ export class WindComponent {
         type: 'line',
       },
       title: {
-        text: 'Wind Directorion',
+        text: 'Wind Directorion History',
       },
       xaxis: { labels: { show: false } },
+      yaxis: { decimalsInFloat: 0 },
+    };
+    this.chartOptionsWF = {
+      series: [
+        {
+          name: 'Wind Direction Frequency',
+          data: [44, 55, 13, 33],
+        },
+      ],
+      chart: {
+        type: 'line',
+      },
+      title: {
+        text: 'Wind Directorion Frequency',
+      },
+      xaxis: { labels: { show: true, hideOverlappingLabels: true } },
       yaxis: { decimalsInFloat: 0 },
     };
 
@@ -87,8 +104,15 @@ export class WindComponent {
 
     this.chartOptions.series = [
       {
-        name: 'Wind Direction',
+        name: 'Wind Direction History',
         data: this.windService.getWindDirectionHistory().slice(-30),
+      },
+    ];
+
+    this.chartOptionsWF.series = [
+      {
+        name: 'Wind Direction Frequency',
+        data: this.windService.getWindDirectionFrequency(),
       },
     ];
   }
@@ -123,6 +147,10 @@ export class WindComponent {
   reservePhone() {
     this.locationService.phoneIsPointingForward =
       !this.locationService.phoneIsPointingForward;
+  }
+
+  resetWindFrequency() {
+    this.windService.resetWindDirectionFrequency();
   }
 
   get title() {
