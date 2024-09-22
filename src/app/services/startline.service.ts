@@ -9,6 +9,8 @@ export class StartlineService {
   pinEndPosition: GeolocationCoordinates | null = null;
   boadEndPosition: GeolocationCoordinates | null = null;
 
+  public vmgBoatSpeed = 1.5; // m/s
+
   constructor(private locationService: LocationService) {}
 
   setPinEndPosition() {
@@ -64,5 +66,10 @@ export class StartlineService {
       this.boadEndPosition.latitude,
       this.boadEndPosition.longitude
     );
+  }
+
+  get timeToLine(): number | null {
+    if (!this.distanceToLine) return null;
+    return this.distanceToLine / this.vmgBoatSpeed;
   }
 }

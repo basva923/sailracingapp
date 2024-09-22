@@ -1,6 +1,9 @@
 export class UnitToString {
   static metersToString(meters: number): string {
-    return meters.toFixed(2) + 'm';
+    return meters.toFixed(0) + 'm';
+  }
+  static fractionDigits(meters: number, fractionDigits: number): string {
+    return meters.toFixed() + 'm';
   }
   static milisecondsToTime(ms: number) {
     const seconds = Math.floor((ms / 1000) % 60);
@@ -16,7 +19,11 @@ export class UnitToString {
   }
 
   static metersPerSecondToKnots(mps: number): string {
-    return (mps * 1.94384449).toFixed(2) + 'kt';
+    return (mps * 1.94384449).toFixed(1) + 'kt';
+  }
+
+  static secondsToString(seconds: number): string {
+    return seconds.toFixed(0) + 's';
   }
 
   static metersToNauticalMiles(m: number): string {

@@ -15,6 +15,7 @@ import { StartlineService } from '../services/startline.service';
 export class TimerComponent {
   timeLeft: string = '---';
   distanceToLine: string = '---';
+  timeToKill: string = '---';
   distanceBetweenBooys: string = 'please set the booys';
   lastPosition: GeolocationCoordinates | null = null;
 
@@ -26,6 +27,7 @@ export class TimerComponent {
     setInterval(() => {
       self.calcTimeLeft();
       self.calcDistanceToLine();
+      self.calcTimeToKill();
       self.calcDistanceBetweenBooys();
     }, 500);
   }
@@ -88,6 +90,20 @@ export class TimerComponent {
     }
   }
 
+  calcTimeToKill() {
+    if (
+      this.startLineService.timeToLine &&
+      this.timerService.milliSecondsLeft
+    ) {
+      this.timeToKill = UnitToString.secondsToString(
+        this.timerService.milliSecondsLeft / 1000 -
+          this.startLineService.timeToLine
+      );
+    } else {
+      this.timeToKill = '---';
+    }
+  }
+
   calcDistanceBetweenBooys() {
     if (this.startLineService.startLineLength) {
       this.distanceBetweenBooys = UnitToString.metersToString(
@@ -96,5 +112,13 @@ export class TimerComponent {
     } else {
       this.distanceBetweenBooys = 'please set the booys';
     }
+  }
+
+  handleVMGUpdate() {
+    const currentVMG = this.startLineService.vmgBoatSpeed / 0.514444444;
+    const vmgKnots = Number(
+      prompt('Enter you VMG in knots.', currentVMG.toFixed(2))
+    );
+    this.startLineService.vmgBoatSpeed = vmgKnots * 0.514444444;
   }
 }
