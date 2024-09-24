@@ -66,7 +66,10 @@ export class WindService {
   }
 
   getRelativeCalculatedWindDirection() {
-    return this.getCalculatedWindDirection() - this.windDirection;
+    return Util.angleDiff(
+      this.getCalculatedWindDirection(),
+      this.windDirection
+    );
   }
 
   getWindDirectionHistory(): number[] {
@@ -75,7 +78,7 @@ export class WindService {
 
   getRelativeWindDirectionHistory(): number[] {
     return this.getWindDirectionHistory().map((v) => {
-      return Util.normaliseDegrees(v - this.windDirection);
+      return Util.angleDiff(v, this.windDirection);
     });
   }
 

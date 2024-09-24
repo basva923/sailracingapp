@@ -67,4 +67,14 @@ export class Util {
   static toRadians(degrees: number) {
     return (degrees * Math.PI) / 180;
   }
+
+  static angleDiff(degrees1: number, degrees2: number) {
+    degrees1 = this.normaliseDegrees(degrees1);
+    degrees2 = this.normaliseDegrees(degrees2);
+
+    const diff = degrees1 - degrees2;
+
+    // Normalize the difference to be between -180 and 180
+    return ((diff + 180) % 360) - 180;
+  }
 }
