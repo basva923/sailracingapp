@@ -65,6 +65,10 @@ export class WindService {
     );
   }
 
+  getRelativeCalculatedWindDirection() {
+    return this.getCalculatedWindDirection() - this.windDirection;
+  }
+
   getWindDirectionHistory(): number[] {
     return this.windDirectionHistory.slice(-1000);
   }
@@ -89,7 +93,10 @@ export class WindService {
       } else if (i >= this.windDirectionFrequency.length) {
         j = i - this.windDirectionFrequency.length;
       }
-      result.push({ x: j, y: this.windDirectionFrequency[j] });
+      result.push({
+        x: i - this.windDirection,
+        y: this.windDirectionFrequency[j],
+      });
     }
     return result;
   }

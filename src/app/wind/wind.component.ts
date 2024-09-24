@@ -167,12 +167,9 @@ export class WindComponent {
       false
     );
 
-    this.chartOptionsWF.annotations!.xaxis![1].x =
-      this.windService.getWindDirection();
-
-    if (this.windService.getCalculatedWindDirection()) {
+    if (this.windService.getRelativeCalculatedWindDirection()) {
       this.chartOptionsWF.annotations!.xaxis![1].x =
-        this.windService.getCalculatedWindDirection();
+        this.windService.getRelativeCalculatedWindDirection();
     }
   }
 
