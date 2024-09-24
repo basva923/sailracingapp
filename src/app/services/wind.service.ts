@@ -71,7 +71,7 @@ export class WindService {
 
   getRelativeWindDirectionHistory(): number[] {
     return this.getWindDirectionHistory().map((v) => {
-      return v - this.windDirection;
+      return Util.normaliseDegrees(v - this.windDirection);
     });
   }
 
@@ -89,7 +89,7 @@ export class WindService {
       } else if (i >= this.windDirectionFrequency.length) {
         j = i - this.windDirectionFrequency.length;
       }
-      result.push({ x: i, y: this.windDirectionFrequency[j] });
+      result.push({ x: j, y: this.windDirectionFrequency[j] });
     }
     return result;
   }
