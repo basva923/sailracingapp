@@ -9,7 +9,7 @@ export class WindService {
   private windDirection: number = 0;
   public angleOfAttack: number = 45;
   private windDirectionHistory: number[] = [];
-  private readonly HISTORY_SIZE = 30000;
+  private readonly HISTORY_SIZE = 60 * 60 * 8;
   private windDirectionFrequency: number[] = [];
 
   constructor(private locationService: LocationService) {
@@ -73,6 +73,21 @@ export class WindService {
     return this.windDirectionFrequency;
   }
 
+  getWindDirectionFrequencyPart() {
+    const result = [];
+    for (let i = this.windDirection - 40; i < this.windDirection + 40; i++) {
+      let j = i;
+
+      if (i < 0) {
+        j = i + this.windDirectionFrequency.length;
+      } else if (i >= this.windDirectionFrequency.length) {
+        j = i - this.windDirectionFrequency.length;
+      }
+      result.push({ x: i, y: this.windDirectionFrequency[j] });
+    }
+    return result;
+  }
+
   resetWindDirectionFrequency() {
     this.windDirectionFrequency = [];
     for (let i = 0; i < this.scaleWind(360); i++) {
@@ -81,6 +96,6 @@ export class WindService {
   }
 
   private scaleWind(d: number) {
-    return Math.floor(d / 2);
+    return Math.floor(d);
   }
 }

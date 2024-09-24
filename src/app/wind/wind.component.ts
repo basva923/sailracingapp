@@ -10,6 +10,7 @@ import {
   ApexChart,
   ApexXAxis,
   ApexYAxis,
+  ApexAnnotations,
 } from 'ng-apexcharts';
 import { ViewChild } from '@angular/core';
 
@@ -19,6 +20,7 @@ export type ChartOptions = {
   title: ApexTitleSubtitle;
   xaxis: ApexXAxis;
   yaxis: ApexYAxis;
+  annotations: ApexAnnotations;
 };
 
 @Component({
@@ -31,7 +33,7 @@ export type ChartOptions = {
 export class WindComponent {
   // @ViewChild('chart', { static: false }) char  t!: ChartComponent;
   public chartOptions: Partial<ChartOptions>;
-  // public chartOptionsWF: Partial<ChartOptions>;
+  public chartOptionsWF: Partial<ChartOptions>;
 
   setWind() {
     throw new Error('Method not implemented.');
@@ -61,23 +63,25 @@ export class WindComponent {
       },
       xaxis: { labels: { show: false } },
       yaxis: { decimalsInFloat: 0 },
+      annotations: {},
     };
-    // this.chartOptionsWF = {
-    //   series: [
-    //     {
-    //       name: 'Wind Direction Frequency',
-    //       data: [44, 55, 13, 33],
-    //     },
-    //   ],
-    //   chart: {
-    //     type: 'line',
-    //   },
-    //   title: {
-    //     text: 'Wind Directorion Frequency',
-    //   },
-    //   xaxis: { labels: { show: true, hideOverlappingLabels: true } },
-    //   yaxis: { decimalsInFloat: 0 },
-    // };
+    this.chartOptionsWF = {
+      series: [
+        {
+          name: 'Wind Direction Frequency',
+          data: [44, 55, 13, 33],
+        },
+      ],
+      chart: {
+        type: 'line',
+      },
+      title: {
+        text: 'Wind Directorion Frequency',
+      },
+      xaxis: { labels: { show: true, hideOverlappingLabels: true } },
+      yaxis: { decimalsInFloat: 0 },
+      annotations: {},
+    };
 
     locationService.subscribeForLocation((location: GeolocationPosition) => {
       self.handleUpdate();
@@ -104,17 +108,48 @@ export class WindComponent {
 
     this.chartOptions.series = [
       {
-        name: 'Wind Direction History',
         data: this.windService.getWindDirectionHistory().slice(-30),
       },
     ];
 
-    // this.chartOptionsWF.series = [
-    //   {
-    //     name: 'Wind Direction Frequency',
-    //     data: this.windService.getWindDirectionFrequency(),
-    //   },
-    // ];
+    this.chartOptionsWF.series = [
+      {
+        data: this.windService.getWindDirectionFrequencyPart(),
+      },
+    ];
+
+    if (this.windService.getCalculatedWindDirection()) {
+      this.chartOptionsWF.annotations = {
+        xaxis: [
+          {
+            x: this.windService.getWindDirection(),
+            strokeDashArray: 0,
+            borderColor: '#775DD0',
+            label: {
+              borderColor: '#775DD0',
+              style: {
+                color: '#fff',
+                background: '#775DD0',
+              },
+              text: 'Configured wind',
+            },
+          },
+          {
+            x: this.windService.getCalculatedWindDirection(),
+            strokeDashArray: 0,
+            borderColor: '#B3F7CA',
+            label: {
+              borderColor: '#B3F7CA',
+              style: {
+                color: '#fff',
+                background: '#B3F7CA',
+              },
+              text: 'Calculated wind',
+            },
+          },
+        ],
+      };
+    }
   }
 
   setPortTack() {

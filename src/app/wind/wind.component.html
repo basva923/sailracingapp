@@ -16,6 +16,19 @@
   </div>
 </div>
 
+<div class="row mt-3">
+  <div class="col">
+    <apx-chart
+      [series]="chartOptionsWF.series"
+      [chart]="chartOptionsWF.chart"
+      [title]="chartOptionsWF.title"
+      [xaxis]="chartOptionsWF.xaxis"
+      [yaxis]="chartOptionsWF.yaxis"
+      [annotations]="chartOptionsWF.annotations"
+    ></apx-chart>
+  </div>
+</div>
+
 <div class="row">
   <div class="col-6 text-center">Heading</div>
   <div class="col-6 text-center">Configured wind</div>
@@ -29,18 +42,6 @@
     <p class="wvhalfscreen">{{ configuredWindText }}</p>
   </div>
 </div>
-
-<!-- <div class="row mt-3">
-  <div class="col">
-    <apx-chart
-      [series]="chartOptionsWF.series"
-      [chart]="chartOptionsWF.chart"
-      [title]="chartOptionsWF.title"
-      [xaxis]="chartOptionsWF.xaxis"
-      [yaxis]="chartOptionsWF.yaxis"
-    ></apx-chart>
-  </div>
-</div> -->
 
 <div class="row mt-5">
   <div class="col-6 text-center">
