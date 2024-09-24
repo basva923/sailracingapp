@@ -11,6 +11,7 @@ import {
   ApexXAxis,
   ApexYAxis,
   ApexAnnotations,
+  ApexNonAxisChartSeries,
 } from 'ng-apexcharts';
 import { ViewChild } from '@angular/core';
 
@@ -31,7 +32,8 @@ export type ChartOptions = {
   styleUrl: './wind.component.css',
 })
 export class WindComponent {
-  // @ViewChild('chart', { static: false }) char  t!: ChartComponent;
+  @ViewChild('chart', { static: false }) chart!: ChartComponent;
+  @ViewChild('chartWF', { static: false }) chartWF!: ChartComponent;
   public chartOptions: Partial<ChartOptions>;
   public chartOptionsWF: Partial<ChartOptions>;
 
@@ -80,7 +82,36 @@ export class WindComponent {
       },
       xaxis: { labels: { show: true, hideOverlappingLabels: true } },
       yaxis: { decimalsInFloat: 0 },
-      annotations: {},
+      annotations: {
+        xaxis: [
+          {
+            x: 0,
+            strokeDashArray: 0,
+            borderColor: '#775DD0',
+            label: {
+              borderColor: '#775DD0',
+              style: {
+                color: '#fff',
+                background: '#775DD0',
+              },
+              text: 'Configured wind',
+            },
+          },
+          {
+            x: 1,
+            strokeDashArray: 0,
+            borderColor: '#B3F7CA',
+            label: {
+              borderColor: '#B3F7CA',
+              style: {
+                color: '#fff',
+                background: '#B3F7CA',
+              },
+              text: 'Calculated wind',
+            },
+          },
+        ],
+      },
     };
 
     locationService.subscribeForLocation((location: GeolocationPosition) => {
@@ -92,6 +123,10 @@ export class WindComponent {
 
     setInterval(() => {
       self.handleChartUpdate();
+    }, 1000);
+
+    setInterval(() => {
+      self.handleFrequencyChartUpdate();
     }, 1000);
   }
 
@@ -112,49 +147,32 @@ export class WindComponent {
   }
 
   handleChartUpdate() {
-    this.chartOptions.series = [
-      {
-        data: this.windService.getRelativeWindDirectionHistory().slice(-30),
-      },
-    ];
+    this.chart.updateSeries(
+      [
+        {
+          data: this.windService.getRelativeWindDirectionHistory().slice(-30),
+        },
+      ],
+      false
+    );
+  }
 
-    this.chartOptionsWF.series = [
-      {
-        data: this.windService.getWindDirectionFrequencyPart(),
-      },
-    ];
+  handleFrequencyChartUpdate() {
+    this.chartWF.updateSeries(
+      [
+        {
+          data: this.windService.getWindDirectionFrequencyPart(),
+        },
+      ],
+      false
+    );
+
+    this.chartOptionsWF.annotations!.xaxis![1].x =
+      this.windService.getWindDirection();
 
     if (this.windService.getCalculatedWindDirection()) {
-      this.chartOptionsWF.annotations = {
-        xaxis: [
-          {
-            x: this.windService.getWindDirection(),
-            strokeDashArray: 0,
-            borderColor: '#775DD0',
-            label: {
-              borderColor: '#775DD0',
-              style: {
-                color: '#fff',
-                background: '#775DD0',
-              },
-              text: 'Configured wind',
-            },
-          },
-          {
-            x: this.windService.getCalculatedWindDirection(),
-            strokeDashArray: 0,
-            borderColor: '#B3F7CA',
-            label: {
-              borderColor: '#B3F7CA',
-              style: {
-                color: '#fff',
-                background: '#B3F7CA',
-              },
-              text: 'Calculated wind',
-            },
-          },
-        ],
-      };
+      this.chartOptionsWF.annotations!.xaxis![1].x =
+        this.windService.getCalculatedWindDirection();
     }
   }
 
