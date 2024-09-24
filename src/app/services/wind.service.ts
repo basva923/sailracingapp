@@ -51,11 +51,11 @@ export class WindService {
   }
 
   getCalculatedWindDirection() {
-    const angleToTheWind = Math.abs(
-      Util.angleDiff(this.locationService.heading, this.windDirection)
+    const angleToTheWind = Util.normaliseDegrees(
+      this.locationService.heading - this.windDirection
     );
 
-    if (angleToTheWind > 90) {
+    if (angleToTheWind > 180) {
       return Util.normaliseDegrees(
         this.locationService.heading + this.angleOfAttack
       );
