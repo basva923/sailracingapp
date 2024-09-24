@@ -89,6 +89,10 @@ export class WindComponent {
     setInterval(() => {
       self.handleUpdate();
     }, 100);
+
+    setInterval(() => {
+      self.handleChartUpdate();
+    }, 1000);
   }
 
   handleUpdate() {
@@ -105,10 +109,12 @@ export class WindComponent {
     this.configuredWindText = UnitToString.degreesToString(
       this.windService.getWindDirection()
     );
+  }
 
+  handleChartUpdate() {
     this.chartOptions.series = [
       {
-        data: this.windService.getWindDirectionHistory().slice(-30),
+        data: this.windService.getRelativeWindDirectionHistory().slice(-30),
       },
     ];
 

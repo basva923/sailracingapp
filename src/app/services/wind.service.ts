@@ -65,8 +65,14 @@ export class WindService {
     );
   }
 
-  getWindDirectionHistory() {
+  getWindDirectionHistory(): number[] {
     return this.windDirectionHistory.slice(-1000);
+  }
+
+  getRelativeWindDirectionHistory(): number[] {
+    return this.getRelativeWindDirectionHistory().map((v) => {
+      return v - this.windDirection;
+    });
   }
 
   getWindDirectionFrequency() {
