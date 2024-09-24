@@ -70,7 +70,7 @@ export class WindService {
   }
 
   getRelativeWindDirectionHistory(): number[] {
-    return this.getRelativeWindDirectionHistory().map((v) => {
+    return this.getWindDirectionHistory().map((v) => {
       return v - this.windDirection;
     });
   }
