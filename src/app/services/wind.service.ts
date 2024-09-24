@@ -21,13 +21,13 @@ export class WindService {
 
   setPortTack() {
     this.windDirection = Util.normaliseDegrees(
-      this.locationService.heading - this.angleOfAttack
+      Math.round(this.locationService.heading) - this.angleOfAttack
     );
   }
 
   setStarboardTack() {
     this.windDirection = Util.normaliseDegrees(
-      this.locationService.heading + this.angleOfAttack
+      Math.round(this.locationService.heading) + this.angleOfAttack
     );
   }
 
@@ -51,11 +51,11 @@ export class WindService {
   }
 
   getCalculatedWindDirection() {
-    const angleToTheWind = Util.normaliseDegrees(
-      this.locationService.heading - this.windDirection
+    const angleToTheWind = Math.abs(
+      Util.angleDiff(this.locationService.heading, this.windDirection)
     );
 
-    if (angleToTheWind > 180) {
+    if (angleToTheWind > 90) {
       return Util.normaliseDegrees(
         this.locationService.heading + this.angleOfAttack
       );
@@ -100,6 +100,7 @@ export class WindService {
         x: i - this.windDirection,
         y: this.windDirectionFrequency[j],
       });
+      180;
     }
     return result;
   }
