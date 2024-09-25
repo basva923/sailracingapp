@@ -51,15 +51,28 @@ export class WindService {
   }
 
   getCalculatedWindDirection() {
-    const angleToTheWind = Util.normaliseDegrees(
-      this.locationService.heading - this.windDirection
+    const angleToTheWind = Util.angleDiff(
+      this.locationService.heading,
+      this.windDirection
     );
 
-    if (angleToTheWind > 180) {
+    if (angleToTheWind > 0 && angleToTheWind < 90) {
+      // starboard tack
       return Util.normaliseDegrees(
         this.locationService.heading + this.angleOfAttack
       );
+    } else if (angleToTheWind > 90 && angleToTheWind < 180) {
+      // starboard downwind
+      return Util.normaliseDegrees(
+        this.locationService.heading - this.angleOfAttack + 180
+      );
+    } else if (angleToTheWind > -180 && angleToTheWind < -90) {
+      // port downwind
+      return Util.normaliseDegrees(
+        this.locationService.heading + this.angleOfAttack + 180
+      );
     }
+    // port tack
     return Util.normaliseDegrees(
       this.locationService.heading - this.angleOfAttack
     );
@@ -67,8 +80,8 @@ export class WindService {
 
   getRelativeCalculatedWindDirection() {
     return Util.angleDiff(
-      this.getCalculatedWindDirection(),
-      this.windDirection
+      this.windDirection,
+      this.getCalculatedWindDirection()
     );
   }
 
@@ -78,7 +91,7 @@ export class WindService {
 
   getRelativeWindDirectionHistory(): number[] {
     return this.getWindDirectionHistory().map((v) => {
-      return Util.angleDiff(v, this.windDirection);
+      return Util.angleDiff(this.windDirection, v);
     });
   }
 

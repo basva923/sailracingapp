@@ -68,13 +68,23 @@ export class Util {
     return (degrees * Math.PI) / 180;
   }
 
+  /**
+   * Calculate the difference between two angles in degrees.
+   * @returns The difference between the two angles in degrees.
+   */
   static angleDiff(degrees1: number, degrees2: number) {
     degrees1 = this.normaliseDegrees(degrees1);
     degrees2 = this.normaliseDegrees(degrees2);
 
-    const diff = degrees1 - degrees2;
+    const diff = degrees2 - degrees1;
 
     // Normalize the difference to be between -180 and 180
-    return ((diff + 180) % 360) - 180;
+    if (diff >= 180) {
+      return diff - 360;
+    } else if (diff < -180) {
+      return diff + 360;
+    } else {
+      return diff;
+    }
   }
 }
