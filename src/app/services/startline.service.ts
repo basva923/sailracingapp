@@ -59,12 +59,12 @@ export class StartlineService {
       return null;
     }
     return Util.crossTrackDistance(
-      this.locationService.curLatitude,
-      this.locationService.curLongitude,
       this.pinEndPosition.latitude,
       this.pinEndPosition.longitude,
       this.boadEndPosition.latitude,
-      this.boadEndPosition.longitude
+      this.boadEndPosition.longitude,
+      this.locationService.curLatitude,
+      this.locationService.curLongitude
     );
   }
 

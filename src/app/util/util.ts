@@ -13,23 +13,24 @@ export class Util {
     return Math.atan2(y, x); // Bearing in radians
   }
 
-  // Calculate cross-track distance from point to great circle
+  /**
+   * Calculate the distance between point P and the great circle defined by points A and B.
+   */
   static crossTrackDistance(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number,
-    lat3: number,
-    lon3: number
+    latA: number,
+    lonA: number,
+    latB: number,
+    lonB: number,
+    latP: number,
+    lonP: number
   ) {
     const R = 6371 * 1000; // Earth's radius in meters
 
-    // Distance between point A (lat1, lon1) and point P (lat3, lon3)
-    const d13 = this.haversineDistanceBetweenPoints(lat1, lon1, lat3, lon3);
+    const d13 = this.haversineDistanceBetweenPoints(latA, lonA, latP, lonP);
 
     // Bearings
-    const θ13 = this.bearing(lat1, lon1, lat3, lon3); // Bearing from A to P
-    const θ12 = this.bearing(lat1, lon1, lat2, lon2); // Bearing from A to B
+    const θ13 = this.bearing(latA, lonA, latP, lonP);
+    const θ12 = this.bearing(latA, lonA, latB, lonB);
 
     // Cross-track distance formula
     const dXt = Math.asin(Math.sin(d13 / R) * Math.sin(θ13 - θ12)) * R;
