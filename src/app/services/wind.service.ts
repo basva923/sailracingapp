@@ -45,28 +45,26 @@ export class WindService {
       -this.HISTORY_SIZE,
       this.windDirectionHistory.length
     );
-    this.windDirectionFrequency[
-      this.scaleWind(this.getCalculatedWindDirection())
-    ] += 1;
+    if (this.sailingUpwind) {
+      // only log wind direction when sailing upwind
+      this.windDirectionFrequency[
+        this.scaleWind(this.getCalculatedWindDirection())
+      ] += 1;
+    }
   }
 
   getCalculatedWindDirection() {
-    const angleToTheWind = Util.angleDiff(
-      this.locationService.heading,
-      this.windDirection
-    );
-
-    if (angleToTheWind > 0 && angleToTheWind < 90) {
+    if (this.sailingOnStarboardTack && this.sailingUpwind) {
       // starboard tack
       return Util.normaliseDegrees(
         this.locationService.heading + this.angleOfAttack
       );
-    } else if (angleToTheWind > 90 && angleToTheWind < 180) {
+    } else if (this.sailingOnStarboardTack && this.sailingDownwind) {
       // starboard downwind
       return Util.normaliseDegrees(
         this.locationService.heading - this.angleOfAttack + 180
       );
-    } else if (angleToTheWind > -180 && angleToTheWind < -90) {
+    } else if (this.sailingOnPortTack && this.sailingDownwind) {
       // port downwind
       return Util.normaliseDegrees(
         this.locationService.heading + this.angleOfAttack + 180
@@ -127,5 +125,37 @@ export class WindService {
 
   private scaleWind(d: number) {
     return Math.floor(d);
+  }
+
+  get sailingDownwind() {
+    return (
+      Math.abs(
+        Util.angleDiff(this.locationService.heading, this.windDirection)
+      ) > 90
+    );
+  }
+
+  get sailingUpwind() {
+    return (
+      Math.abs(
+        Util.angleDiff(this.locationService.heading, this.windDirection)
+      ) <= 90
+    );
+  }
+
+  get sailingOnPortTack() {
+    const angleToTheWind = Util.angleDiff(
+      this.locationService.heading,
+      this.windDirection
+    );
+    return angleToTheWind < 0;
+  }
+
+  get sailingOnStarboardTack() {
+    const angleToTheWind = Util.angleDiff(
+      this.locationService.heading,
+      this.windDirection
+    );
+    return angleToTheWind >= 0;
   }
 }
