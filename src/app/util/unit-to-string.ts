@@ -10,11 +10,15 @@ export class UnitToString {
     const minutes = Math.floor((ms / (1000 * 60)) % 60);
     const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
     const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+
+    const pad = (num: number) => num.toString().padStart(2, '0');
+
     return (
       (days > 0 ? days + 'd ' : '') +
-      (hours > 0 ? hours + ':' : '') +
-      (minutes >= 0 ? minutes + ':' : '') +
-      (seconds >= 0 ? seconds + '' : '')
+      (hours > 0 || days > 0 ? pad(hours) + ':' : '') +
+      pad(minutes) +
+      ':' +
+      pad(seconds)
     );
   }
 
