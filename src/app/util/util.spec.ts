@@ -46,4 +46,73 @@ describe('Util', () => {
     expect(Util.angleDiff(30, 720)).toBe(-30);
     expect(Util.angleDiff(720, 30)).toBe(30);
   });
+
+  // test haversine distance
+  it('should calculate haversine distance', () => {
+    const lat1 = 51.143547;
+    const lon1 = 5.833524;
+    const lat2 = 51.139998;
+    const lon2 = 5.839311;
+    const lat3 = 51.140391;
+    const lon3 = 5.833951;
+
+    expect(
+      Util.haversineDistanceBetweenPoints(lat1, lon1, lat2, lon2)
+    ).toBeCloseTo(565, 0);
+
+    expect(
+      Util.haversineDistanceBetweenPoints(lat2, lon2, lat1, lon1)
+    ).toBeCloseTo(565, 0);
+
+    // 51.140391°N 5.833951°E
+    expect(
+      Util.haversineDistanceBetweenPoints(lat3, lon3, lat2, lon2)
+    ).toBeCloseTo(376, 0);
+
+    expect(
+      Util.haversineDistanceBetweenPoints(lat2, lon2, lat3, lon3)
+    ).toBeCloseTo(376, 0);
+
+    expect(
+      Util.haversineDistanceBetweenPoints(lat1, lon1, lat3, lon3)
+    ).toBeCloseTo(352, 0);
+
+    expect(
+      Util.haversineDistanceBetweenPoints(lat3, lon3, lat1, lon1)
+    ).toBeCloseTo(352, 0);
+  });
+
+  // test cross track distance
+  it('should calculate cross track distance', () => {
+    const lat1 = 51.143547;
+    const lon1 = 5.833524;
+    const lat2 = 51.139998;
+    const lon2 = 5.839311;
+    const lat3 = 51.140391;
+    const lon3 = 5.833951;
+
+    expect(
+      Util.crossTrackDistance(lat1, lon1, lat2, lon2, lat3, lon3)
+    ).toBeCloseTo(230, 0);
+
+    expect(
+      Util.crossTrackDistance(lat2, lon2, lat1, lon1, lat3, lon3)
+    ).toBeCloseTo(230, 0);
+
+    expect(
+      Util.crossTrackDistance(lat3, lon3, lat2, lon2, lat1, lon1)
+    ).toBeCloseTo(345, 0);
+
+    expect(
+      Util.crossTrackDistance(lat1, lon1, lat3, lon3, lat2, lon2)
+    ).toBeCloseTo(369, 0);
+
+    expect(
+      Util.crossTrackDistance(lat2, lon2, lat3, lon3, lat1, lon1)
+    ).toBeCloseTo(345, 0);
+
+    expect(
+      Util.crossTrackDistance(lat3, lon3, lat1, lon1, lat2, lon2)
+    ).toBeCloseTo(369, 0);
+  });
 });
