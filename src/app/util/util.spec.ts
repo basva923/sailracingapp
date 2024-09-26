@@ -91,28 +91,34 @@ describe('Util', () => {
     const lat3 = 51.140391;
     const lon3 = 5.833951;
 
-    expect(
-      Util.crossTrackDistance(lat1, lon1, lat2, lon2, lat3, lon3)
-    ).toBeCloseTo(230, 0);
+    expect(Util.distanceToLine(lat1, lon1, lat2, lon2, lat3, lon3)).toBeCloseTo(
+      230,
+      0
+    );
 
-    expect(
-      Util.crossTrackDistance(lat2, lon2, lat1, lon1, lat3, lon3)
-    ).toBeCloseTo(230, 0);
+    expect(Util.distanceToLine(lat2, lon2, lat1, lon1, lat3, lon3)).toBeCloseTo(
+      230,
+      0
+    );
 
-    expect(
-      Util.crossTrackDistance(lat3, lon3, lat2, lon2, lat1, lon1)
-    ).toBeCloseTo(345, 0);
+    expect(Util.distanceToLine(lat3, lon3, lat2, lon2, lat1, lon1)).toBeCloseTo(
+      345,
+      0
+    );
 
-    expect(
-      Util.crossTrackDistance(lat1, lon1, lat3, lon3, lat2, lon2)
-    ).toBeCloseTo(369, 0);
+    expect(Util.distanceToLine(lat1, lon1, lat3, lon3, lat2, lon2)).toBeCloseTo(
+      369,
+      0
+    );
 
-    expect(
-      Util.crossTrackDistance(lat2, lon2, lat3, lon3, lat1, lon1)
-    ).toBeCloseTo(345, 0);
+    expect(Util.distanceToLine(lat2, lon2, lat3, lon3, lat1, lon1)).toBeCloseTo(
+      345,
+      0
+    );
 
-    expect(
-      Util.crossTrackDistance(lat3, lon3, lat1, lon1, lat2, lon2)
-    ).toBeCloseTo(369, 0);
+    expect(Util.distanceToLine(lat3, lon3, lat1, lon1, lat2, lon2)).toBeCloseTo(
+      369,
+      0
+    );
   });
 });

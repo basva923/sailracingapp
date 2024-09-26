@@ -16,7 +16,7 @@ export class Util {
   /**
    * Calculate the distance between point P and the great circle defined by points A and B.
    */
-  static crossTrackDistance(
+  static distanceToLine(
     latA: number,
     lonA: number,
     latB: number,
