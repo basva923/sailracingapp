@@ -1,0 +1,45 @@
+<mgl-map [style]="
+  'https://api.maptiler.com/maps/outdoor-v2/style.json?key=ySvSgRlK5jcGPEckx6HJ'" [zoom]="zoom" [center]="center"
+  (mapLoad)="mapCreated($event)" (touchstart)="onTouchEvent($event)" (click)="onTouchEvent($event)"
+  [style.height]="_height">
+
+  <mgl-image id="arrow" url="assets/icons/arrow.png">
+  </mgl-image>
+  <mgl-control>
+    <button mat-mini-fab color="primary" (click)="toggleNorth()">
+      @if (mapRotated) {
+      <mat-icon>rotate_right</mat-icon>
+      } @else if (northUp) {
+      <mat-icon>north</mat-icon>
+      } @else {
+      <mat-icon>explore</mat-icon>
+      }
+    </button>
+  </mgl-control>
+
+
+  <mgl-control>
+    <button mat-mini-fab color="primary" (click)="setCenterToCurrentLocation()">
+      @if (moved) {
+      <mat-icon>pan_tool</mat-icon>
+      } @else {
+      <mat-icon>my_location</mat-icon>
+      }
+    </button>
+  </mgl-control>
+
+  <mgl-control>
+    <button mat-mini-fab color="primary" (click)="zoomIn()">
+      <mat-icon>add</mat-icon>
+    </button>
+  </mgl-control>
+
+  <mgl-control>
+    <button mat-mini-fab color="primary" (click)="zoomOut()">
+      <mat-icon>remove</mat-icon>
+    </button>
+  </mgl-control>
+
+
+  <mgl-control mglScale position="bottom-right"></mgl-control>
+</mgl-map>

@@ -1,5 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
+import { MatCardModule } from '@angular/material/card';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatGridListModule } from '@angular/material/grid-list';
 import { Util } from '../util/util';
 import { UnitToString } from '../util/unit-to-string';
 import { TimerService } from '../services/timer.service';
@@ -8,7 +12,13 @@ import { StartlineService } from '../services/startline.service';
 @Component({
   selector: 'app-timer',
   standalone: true,
-  imports: [CommonModule],
+  imports: [
+    CommonModule,
+    MatCardModule,
+    MatButtonModule,
+    MatDividerModule,
+    MatGridListModule,
+  ],
   templateUrl: './timer.component.html',
   styleUrl: './timer.component.css',
 })
@@ -97,7 +107,7 @@ export class TimerComponent {
     ) {
       this.timeToKill = UnitToString.secondsToString(
         this.timerService.milliSecondsLeft / 1000 -
-          this.startLineService.timeToLine
+        this.startLineService.timeToLine
       );
     } else {
       this.timeToKill = '---';

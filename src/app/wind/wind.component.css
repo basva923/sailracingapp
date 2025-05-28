@@ -1,7 +1,13 @@
 .wvfullscreen {
     font-size: 30vw;
+    text-align: center;
+    font-weight: bold;
 }
 
 .wvhalfscreen {
     font-size: 15vw;
+}
+
+.text-center {
+    text-align: center;
 }

@@ -1,22 +1,21 @@
-<ul ngbNav #nav="ngbNav" [(activeId)]="activeTab" class="nav-tabs">
-  <li [ngbNavItem]="1">
-    <button ngbNavLink>Timer</button>
-    <ng-template ngbNavContent>
-      <app-timer />
+<mat-tab-group mat-stretch-tabs="false">
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon>settings</mat-icon>
     </ng-template>
-  </li>
-  <li [ngbNavItem]="2">
-    <button ngbNavLink>Wind</button>
-    <ng-template ngbNavContent>
+    <app-timer />
+  </mat-tab>
+  <mat-tab label="Data1">
+    <ng-template mat-tab-label>
+      <mat-icon>dashboard</mat-icon>
+    </ng-template><ng-template matTabContent>
       <app-wind></app-wind>
     </ng-template>
-  </li>
-  <li [ngbNavItem]="3">
-    <button ngbNavLink>Map</button>
-    <ng-template ngbNavContent>
-      <app-map></app-map>
+  </mat-tab>
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon>map</mat-icon>
     </ng-template>
-  </li>
-</ul>
-
-<div [ngbNavOutlet]="nav" class="mt-2"></div>
+    <app-maplibre-map [height]="contentHeight"></app-maplibre-map>
+  </mat-tab>
+</mat-tab-group>

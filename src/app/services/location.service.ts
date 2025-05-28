@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-class LocationEvent extends Event {
+export class LocationEvent extends Event {
   location: GeolocationPosition;
   constructor(location: GeolocationPosition) {
     super('newLocation');

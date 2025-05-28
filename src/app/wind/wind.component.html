@@ -1,109 +1,78 @@
-<p class="text-center">Speed</p>
-<h1 class="text-center wvfullscreen">{{ speedText }}</h1>
+<mat-card>
+  <p class="text-center">Speed</p>
+  <div class="text-center wvfullscreen">{{ speedText }}</div>
 
-<p class="text-center">Calculated wind</p>
-<h1 class="text-center wvfullscreen">{{ calculatedWindDirectionText }}</h1>
+  <p class="text-center">Calculated wind</p>
+  <div class="text-center wvfullscreen">{{ calculatedWindDirectionText }}</div>
 
-<div class="row mt-3">
-  <div class="col">
-    <apx-chart
-      [series]="chartOptions.series"
-      [chart]="chartOptions.chart"
-      [title]="chartOptions.title"
-      [xaxis]="chartOptions.xaxis"
-      [yaxis]="chartOptions.yaxis"
-      #chart
-    ></apx-chart>
-  </div>
-</div>
+  <mat-grid-list cols="1" rowHeight="300px" gutterSize="16px">
+    <mat-grid-tile>
+      <apx-chart [series]="chartOptions.series" [chart]="chartOptions.chart" [title]="chartOptions.title"
+        [xaxis]="chartOptions.xaxis" [yaxis]="chartOptions.yaxis" #chart></apx-chart>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <apx-chart [series]="chartOptionsWF.series" [chart]="chartOptionsWF.chart" [title]="chartOptionsWF.title"
+        [xaxis]="chartOptionsWF.xaxis" [yaxis]="chartOptionsWF.yaxis" [annotations]="chartOptionsWF.annotations"
+        #chartWF></apx-chart>
+    </mat-grid-tile>
+  </mat-grid-list>
 
-<div class="row mt-3">
-  <div class="col">
-    <apx-chart
-      [series]="chartOptionsWF.series"
-      [chart]="chartOptionsWF.chart"
-      [title]="chartOptionsWF.title"
-      [xaxis]="chartOptionsWF.xaxis"
-      [yaxis]="chartOptionsWF.yaxis"
-      [annotations]="chartOptionsWF.annotations"
-      #chartWF
-    ></apx-chart>
-  </div>
-</div>
+  <mat-divider class="my-3"></mat-divider>
 
-<div class="row">
-  <div class="col-6 text-center">Heading</div>
-  <div class="col-6 text-center">Configured wind</div>
-</div>
+  <mat-grid-list cols="2" rowHeight="40px">
+    <mat-grid-tile>
+      <div class="text-center">Heading</div>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <div class="text-center">Configured wind</div>
+    </mat-grid-tile>
+  </mat-grid-list>
 
-<div class="row">
-  <div class="col-6 text-center">
-    <p class="wvhalfscreen">{{ headingText }}</p>
-  </div>
-  <div class="col-6 text-center">
-    <p class="wvhalfscreen">{{ configuredWindText }}</p>
-  </div>
-</div>
+  <mat-grid-list cols="2" rowHeight="60px">
+    <mat-grid-tile>
+      <p class="wvhalfscreen text-center">{{ headingText }}</p>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <p class="wvhalfscreen text-center">{{ configuredWindText }}</p>
+    </mat-grid-tile>
+  </mat-grid-list>
 
-<div class="row mt-5">
-  <div class="col-6 text-center">
-    <button
-      type="button"
-      class="btn btn-primary btn-lg w-100"
-      (click)="setStarboardTack()"
-    >
-      Set startboard
-    </button>
-  </div>
-  <div class="col-6 text-center">
-    <button
-      type="button"
-      class="btn btn-primary btn-lg w-100"
-      (click)="setPortTack()"
-    >
-      Set port
-    </button>
-  </div>
-</div>
+  <mat-grid-list cols="2" rowHeight="60px" class="mt-5">
+    <mat-grid-tile>
+      <button mat-raised-button color="primary" class="w-100" (click)="setStarboardTack()" style="width: 100%;">
+        Set startboard
+      </button>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <button mat-raised-button color="primary" class="w-100" (click)="setPortTack()" style="width: 100%;">
+        Set port
+      </button>
+    </mat-grid-tile>
+  </mat-grid-list>
 
-<div class="row mt-3">
-  <div class="col-6 text-center">
-    <button
-      type="button"
-      class="btn btn-warning btn-lg w-100"
-      (click)="configureWind()"
-    >
-      Wind
-    </button>
-  </div>
-  <div class="col-6 text-center">
-    <button
-      type="button"
-      class="btn btn-warning btn-lg w-100"
-      (click)="configureAngleOfAttack()"
-    >
-      Attack
-    </button>
-  </div>
-</div>
+  <mat-grid-list cols="2" rowHeight="60px" class="mt-3">
+    <mat-grid-tile>
+      <button mat-raised-button color="warn" class="w-100" (click)="configureWind()" style="width: 100%;">
+        Wind
+      </button>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <button mat-raised-button color="warn" class="w-100" (click)="configureAngleOfAttack()" style="width: 100%;">
+        Attack
+      </button>
+    </mat-grid-tile>
+  </mat-grid-list>
 
-<div class="row mt-3">
-  <div class="col-6 text-center">
-    <button
-      type="button"
-      class="btn btn-warning btn-lg w-100"
-      (click)="reservePhone()"
-    >
-      Reserve phone
-    </button>
-  </div>
-  <div class="col-6 text-center">
-    <button
-      type="button"
-      class="btn btn-warning btn-lg w-100"
-      (click)="resetWindFrequency()"
-    >
-      Reset wind frequency
-    </button>
-  </div>
-</div>
+  <mat-grid-list cols="2" rowHeight="60px" class="mt-3">
+    <mat-grid-tile>
+      <button mat-raised-button color="warn" class="w-100" (click)="reservePhone()" style="width: 100%;">
+        Reserve phone
+      </button>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <button mat-raised-button color="warn" class="w-100" (click)="resetWindFrequency()" style="width: 100%;">
+        Reset wind frequency
+      </button>
+    </mat-grid-tile>
+  </mat-grid-list>
+</mat-card>

@@ -1,110 +1,85 @@
-<p class="text-center">Time to start</p>
-<h1 class="text-center wvtimer">{{ timeLeft }}</h1>
+<mat-card>
+  <p class="text-center">Time to start</p>
+  <div class="text-center wvtimer">{{ timeLeft }}</div>
 
-<div class="row">
-  <div class="col-3 text-left">
-    <button
-      type="button"
-      class="btn"
-      [ngClass]="{
-        'btn-success': startLineService.pinEndSet,
-        'btn-danger': !startLineService.pinEndSet
-      }"
-      (click)="togglePinEndPositionToCurrentLocation()"
-    >
-      Pin
-    </button>
-  </div>
-  <div class="col-6 text-center">- {{ distanceBetweenBooys }} -</div>
-  <div class="col-3 text-end">
-    <button
-      type="button"
-      class="btn"
-      [ngClass]="{
-        'btn-success': startLineService.boadEndSet,
-        'btn-danger': !startLineService.boadEndSet
-      }"
-      (click)="toggleBoadEndPositionToCurrentLocation()"
-    >
-      Boat
-    </button>
-  </div>
-</div>
-<hr />
+  <mat-grid-list cols="3" rowHeight="60px">
+    <mat-grid-tile>
+      <button mat-raised-button color="{{ startLineService.pinEndSet ? 'primary' : 'warn' }}"
+        (click)="togglePinEndPositionToCurrentLocation()">
+        Pin
+      </button>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <div class="text-center">- {{ distanceBetweenBooys }} -</div>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <button mat-raised-button color="{{ startLineService.boadEndSet ? 'primary' : 'warn' }}"
+        (click)="toggleBoadEndPositionToCurrentLocation()">
+        Boat
+      </button>
+    </mat-grid-tile>
+  </mat-grid-list>
 
-<div class="row">
-  <div class="col-6 text-center">Distance to line</div>
-  <div class="col-6 text-center">Time to kill</div>
-</div>
+  <mat-divider></mat-divider>
 
-<div class="row">
-  <div class="col-6 text-center">
-    <p class="wvhalfscreen">{{ distanceToLine }}</p>
-  </div>
-  <div class="col-6 text-center">
-    <p class="wvhalfscreen">{{ timeToKill }}</p>
-  </div>
-</div>
+  <mat-grid-list cols="2" rowHeight="40px">
+    <mat-grid-tile>
+      <div class="text-center">Distance to line</div>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <div class="text-center">Time to kill</div>
+    </mat-grid-tile>
+  </mat-grid-list>
 
-<div class="row mt-5">
-  <div class="col-12">
-    <button
-      type="button"
-      class="btn btn-primary btn-lg w-100"
-      (click)="syncToClosestMinute()"
-    >
+  <mat-grid-list cols="2" rowHeight="60px">
+    <mat-grid-tile>
+      <p class="wvhalfscreen text-center">{{ distanceToLine }}</p>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <p class="wvhalfscreen text-center">{{ timeToKill }}</p>
+    </mat-grid-tile>
+  </mat-grid-list>
+
+  <div class="mt-5">
+    <button mat-raised-button color="accent" class="w-100" (click)="syncToClosestMinute()" style="width: 100%;">
       Sync
     </button>
   </div>
-</div>
 
-<div class="row mt-3">
-  <div class="col-6">
-    <button
-      type="button"
-      class="btn btn-warning btn-lg w-100"
-      (click)="startInMinutes(5)"
-    >
-      Start 5 minutes
-    </button>
-  </div>
+  <mat-grid-list cols="2" rowHeight="60px" class="mt-3">
+    <mat-grid-tile>
+      <button mat-raised-button color="warn" class="w-100" (click)="startInMinutes(5)" style="width: 100%;">
+        Start 5 minutes
+      </button>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <button mat-raised-button color="warn" class="w-100" (click)="startInMinutes(4)" style="width: 100%;">
+        Start 4 minutes
+      </button>
+    </mat-grid-tile>
+  </mat-grid-list>
 
-  <div class="col-6">
-    <button
-      type="button"
-      class="btn btn-warning btn-lg w-100"
-      (click)="startInMinutes(4)"
-    >
-      Start 4 minutes
-    </button>
-  </div>
-</div>
+  <mat-grid-list cols="2" rowHeight="60px" class="mt-3">
+    <mat-grid-tile>
+      <button mat-raised-button color="warn" class="w-100" (click)="startInMinutes(1)" style="width: 100%;">
+        Start 1 minute
+      </button>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <button mat-raised-button color="primary" class="w-100" (click)="reset()" style="width: 100%;">
+        Stop timer
+      </button>
+    </mat-grid-tile>
+  </mat-grid-list>
 
-<div class="row mt-3">
-  <div class="col-6">
-    <button
-      type="button"
-      class="btn btn-warning btn-lg w-100"
-      (click)="startInMinutes(1)"
-    >
-      Start 1 minute
-    </button>
-  </div>
-  <div class="col-6">
-    <button type="button" class="btn btn-danger btn-lg w-100" (click)="reset()">
-      Stop timer
-    </button>
-  </div>
-</div>
-<div class="row mt-3">
-  <div class="col-6">
-    <button
-      type="button"
-      class="btn btn-warning btn-lg w-100"
-      (click)="handleVMGUpdate()"
-    >
-      Set VMG
-    </button>
-  </div>
-  <div class="col-6"></div>
-</div>
+  <mat-grid-list cols="2" rowHeight="60px" class="mt-3">
+    <mat-grid-tile>
+      <button mat-raised-button color="accent" class="w-100" (click)="handleVMGUpdate()" style="width: 100%;">
+        Set VMG
+      </button>
+    </mat-grid-tile>
+    <mat-grid-tile>
+      <!-- Empty tile for spacing -->
+    </mat-grid-tile>
+  </mat-grid-list>
+</mat-card>

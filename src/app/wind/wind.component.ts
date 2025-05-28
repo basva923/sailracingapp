@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, AfterViewInit } from '@angular/core';
 import { LocationService } from '../services/location.service';
 import { WindService } from '../services/wind.service';
 import { UnitToString } from '../util/unit-to-string';
@@ -14,6 +14,10 @@ import {
   ApexNonAxisChartSeries,
 } from 'ng-apexcharts';
 import { ViewChild } from '@angular/core';
+import { MatCardModule } from '@angular/material/card';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatGridListModule } from '@angular/material/grid-list';
 
 export type ChartOptions = {
   series: ApexAxisChartSeries;
@@ -27,19 +31,83 @@ export type ChartOptions = {
 @Component({
   selector: 'app-wind',
   standalone: true,
-  imports: [NgApexchartsModule],
+  imports: [
+    NgApexchartsModule,
+    MatCardModule,
+    MatButtonModule,
+    MatDividerModule,
+    MatGridListModule,
+  ],
   templateUrl: './wind.component.html',
   styleUrl: './wind.component.css',
 })
 export class WindComponent {
-  @ViewChild('chart', { static: false }) chart!: ChartComponent;
-  @ViewChild('chartWF', { static: false }) chartWF!: ChartComponent;
-  public chartOptions: Partial<ChartOptions>;
-  public chartOptionsWF: Partial<ChartOptions>;
+  @ViewChild('chart', { static: false }) chartComponent: ChartComponent | undefined;
+  @ViewChild('chartWF', { static: false }) chartWFComponent: ChartComponent | undefined;
+  public chartOptions: ChartOptions = {
+    series: [
+      {
+        name: 'Wind Direction History',
+        data: [44, 55, 13, 33],
+      },
+    ],
+    chart: {
+      type: 'line',
+    },
+    title: {
+      text: 'Wind Directorion History',
+    },
+    xaxis: { labels: { show: false } },
+    yaxis: { decimalsInFloat: 0 },
+    annotations: {},
+  };
+  public chartOptionsWF: ChartOptions = {
+    series: [
+      {
+        name: 'Wind Direction Frequency',
+        data: [44, 55, 13, 33],
+      },
+    ],
+    chart: {
+      type: 'line',
+    },
+    title: {
+      text: 'Wind Directorion Frequency',
+    },
+    xaxis: { labels: { show: true, hideOverlappingLabels: true } },
+    yaxis: { decimalsInFloat: 0 },
+    annotations: {
+      xaxis: [
+        {
+          x: 0,
+          strokeDashArray: 0,
+          borderColor: '#775DD0',
+          label: {
+            borderColor: '#775DD0',
+            style: {
+              color: '#fff',
+              background: '#775DD0',
+            },
+            text: 'Configured wind',
+          },
+        },
+        {
+          x: 1,
+          strokeDashArray: 0,
+          borderColor: '#B3F7CA',
+          label: {
+            borderColor: '#B3F7CA',
+            style: {
+              color: '#fff',
+              background: '#B3F7CA',
+            },
+            text: 'Calculated wind',
+          },
+        },
+      ],
+    },
+  };
 
-  setWind() {
-    throw new Error('Method not implemented.');
-  }
   headingText: string = '360°';
   calculatedWindDirectionText: string = '360°';
   speedText: string = '00kt';
@@ -49,84 +117,20 @@ export class WindComponent {
     private locationService: LocationService,
     private windService: WindService
   ) {
-    const self = this;
-    this.chartOptions = {
-      series: [
-        {
-          name: 'Wind Direction History',
-          data: [44, 55, 13, 33],
-        },
-      ],
-      chart: {
-        type: 'line',
-      },
-      title: {
-        text: 'Wind Directorion History',
-      },
-      xaxis: { labels: { show: false } },
-      yaxis: { decimalsInFloat: 0 },
-      annotations: {},
-    };
-    this.chartOptionsWF = {
-      series: [
-        {
-          name: 'Wind Direction Frequency',
-          data: [44, 55, 13, 33],
-        },
-      ],
-      chart: {
-        type: 'line',
-      },
-      title: {
-        text: 'Wind Directorion Frequency',
-      },
-      xaxis: { labels: { show: true, hideOverlappingLabels: true } },
-      yaxis: { decimalsInFloat: 0 },
-      annotations: {
-        xaxis: [
-          {
-            x: 0,
-            strokeDashArray: 0,
-            borderColor: '#775DD0',
-            label: {
-              borderColor: '#775DD0',
-              style: {
-                color: '#fff',
-                background: '#775DD0',
-              },
-              text: 'Configured wind',
-            },
-          },
-          {
-            x: 1,
-            strokeDashArray: 0,
-            borderColor: '#B3F7CA',
-            label: {
-              borderColor: '#B3F7CA',
-              style: {
-                color: '#fff',
-                background: '#B3F7CA',
-              },
-              text: 'Calculated wind',
-            },
-          },
-        ],
-      },
-    };
 
     locationService.subscribeForLocation((location: GeolocationPosition) => {
-      self.handleUpdate();
+      this.handleUpdate();
     });
     setInterval(() => {
-      self.handleUpdate();
+      this.handleUpdate();
     }, 100);
 
     setInterval(() => {
-      self.handleChartUpdate();
+      this.handleChartUpdate();
     }, 1000);
 
     setInterval(() => {
-      self.handleFrequencyChartUpdate();
+      this.handleFrequencyChartUpdate();
     }, 1000);
   }
 
@@ -147,7 +151,7 @@ export class WindComponent {
   }
 
   handleChartUpdate() {
-    this.chart.updateSeries(
+    this.chartComponent?.updateSeries(
       [
         {
           data: this.windService.getRelativeWindDirectionHistory().slice(-30),
@@ -158,7 +162,7 @@ export class WindComponent {
   }
 
   handleFrequencyChartUpdate() {
-    this.chartWF.updateSeries(
+    this.chartWFComponent?.updateSeries(
       [
         {
           data: this.windService.getWindDirectionFrequencyPart(),
