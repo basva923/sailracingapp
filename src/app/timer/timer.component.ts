@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import { Util } from '../util/util';
 import { UnitToString } from '../util/unit-to-string';
 
@@ -10,7 +10,7 @@ import { UnitToString } from '../util/unit-to-string';
   templateUrl: './timer.component.html',
   styleUrl: './timer.component.css',
 })
-export class TimerComponent {
+export class TimerComponent implements OnDestroy {
   startTime: Date | null = null;
   timeLeft: string = '---';
   distanceToLine: string = '---';
@@ -19,24 +19,85 @@ export class TimerComponent {
   boadEndPosition: GeolocationCoordinates | null = null;
   lastPosition: GeolocationCoordinates | null = null;
 
-  constructor() {
-    const self = this;
-    setInterval(() => {
-      self.calcTimeLeft();
-      self.calcDistanceToLine();
-    }, 500);
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private watchId: number | null = null;
+  private readonly handleVisibilityChange = () => this.onVisibilityChange();
 
-    // start gps watch
-    navigator.geolocation.watchPosition(
-      (position) => {
-        self.lastPosition = position.coords;
-        self.calcDistanceToLine();
-      },
-      (error) => {
-        console.error(error);
-      },
-      { enableHighAccuracy: true }
+  constructor() {
+    this.start();
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
+  }
+
+  ngOnDestroy() {
+    this.stop();
+    document.removeEventListener(
+      'visibilitychange',
+      this.handleVisibilityChange
     );
+  }
+
+  private onVisibilityChange() {
+    // Pause sensors and timers while the app is in the background to save
+    // battery, and resume them when it becomes visible again.
+    if (document.hidden) {
+      this.stop();
+    } else {
+      this.start();
+    }
+  }
+
+  private start() {
+    if (this.intervalId === null) {
+      // A one second tick is enough for the displayed countdown; the remaining
+      // time is recomputed from startTime so accuracy does not depend on a
+      // high tick rate.
+      this.intervalId = setInterval(() => {
+        this.calcTimeLeft();
+        this.calcDistanceToLine();
+      }, 1000);
+    }
+
+    if (this.watchId === null) {
+      this.watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          this.lastPosition = position.coords;
+          this.calcDistanceToLine();
+        },
+        (error) => {
+          console.error(error);
+        },
+        { enableHighAccuracy: this.needsHighAccuracy() }
+      );
+    }
+  }
+
+  private stop() {
+    if (this.intervalId !== null) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+    }
+  }
+
+  private needsHighAccuracy(): boolean {
+    // High accuracy GPS is only required once the start line is being set up,
+    // when distance-to-line is actually shown. Otherwise let the OS use the
+    // lower power location provider.
+    return this.pinEndPosition !== null || this.boadEndPosition !== null;
+  }
+
+  private restartGpsWatch() {
+    // Re-acquire the GPS watch so a change in required accuracy takes effect.
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+    }
+    if (!document.hidden) {
+      this.start();
+    }
   }
 
   startInMinutes(minutes: number) {
@@ -95,6 +156,7 @@ export class TimerComponent {
     } else {
       this.pinEndPosition = this.lastPosition;
     }
+    this.restartGpsWatch();
     this.calcDistanceBetweenBooys();
     this.calcDistanceToLine();
   }
@@ -106,6 +168,7 @@ export class TimerComponent {
       this.boadEndPosition = this.lastPosition;
     }
 
+    this.restartGpsWatch();
     this.calcDistanceBetweenBooys();
     this.calcDistanceToLine();
   }
