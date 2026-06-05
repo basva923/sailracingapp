@@ -1,4 +1,4 @@
-import { Component, AfterViewInit } from '@angular/core';
+import { Component, AfterViewInit, ChangeDetectionStrategy } from '@angular/core';
 import { LocationService } from '../services/location.service';
 import { WindService } from '../services/wind.service';
 import { UnitToString } from '../util/unit-to-string';
@@ -39,6 +39,7 @@ export type ChartOptions = {
     MatGridListModule,
   ],
   templateUrl: './wind.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './wind.component.css',
 })
 export class WindComponent {

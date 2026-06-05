@@ -1,5 +1,5 @@
-import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
@@ -13,13 +13,13 @@ import { StartlineService } from '../services/startline.service';
   selector: 'app-timer',
   standalone: true,
   imports: [
-    CommonModule,
     MatCardModule,
     MatButtonModule,
     MatDividerModule,
-    MatGridListModule,
-  ],
+    MatGridListModule
+],
   templateUrl: './timer.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './timer.component.css',
 })
 export class TimerComponent {

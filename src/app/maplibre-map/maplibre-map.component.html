@@ -1,4 +1,4 @@
-<mgl-map [style]="
+<mgl-map [mapStyle]="
   'https://api.maptiler.com/maps/outdoor-v2/style.json?key=ySvSgRlK5jcGPEckx6HJ'" [zoom]="zoom" [center]="center"
   (mapLoad)="mapCreated($event)" (touchstart)="onTouchEvent($event)" (click)="onTouchEvent($event)"
   [style.height]="_height">
