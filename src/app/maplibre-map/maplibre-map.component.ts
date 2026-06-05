@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { LngLatLike, Map, MapMouseEvent, MapTouchEvent, NavigationControl } from 'maplibre-gl';
 import { LocationEvent, LocationService } from '../services/location.service';
 import { Util } from '../util/util';
@@ -37,6 +37,7 @@ import { MatIconModule } from '@angular/material/icon';
 
   ],
   templateUrl: './maplibre-map.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './maplibre-map.component.css'
 })
 export class MapLibreMapComponent {

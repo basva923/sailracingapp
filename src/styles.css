@@ -1,9 +1,17 @@
 /* You can add global styles to this file, and also import other style files */
-@import '@angular/material/prebuilt-themes/indigo-pink.css';
+@import '@angular/material/prebuilt-themes/cyan-orange.css';
+
+:root,
+html {
+    color-scheme: dark;
+    background: #121212;
+}
 
 html,
 body {
     height: 100%;
     font-family: Roboto, "Helvetica Neue", sans-serif;
     margin: 0;
+    background: #121212;
+    color: rgba(255, 255, 255, 0.87);
 }

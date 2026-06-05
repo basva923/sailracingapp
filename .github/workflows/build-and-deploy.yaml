@@ -1,18 +1,63 @@
 name: Build and Deploy
+
 on:
   push:
     branches:
       - main
       - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+
 permissions:
-  contents: write
+  contents: read
+
 jobs:
-  build-and-deploy:
-    concurrency: ci-${{ github.ref }} # Recommended if you intend to make multiple deployments in quick succession.
+  ci:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout 🛎️
         uses: actions/checkout@v4
+
+      - name: Setup Node.js 🟢
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Chrome 🌐
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Configure Chrome 🔧
+        run: echo "CHROME_BIN=${{ steps.setup-chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+
+      - name: Install Dependencies 📦
+        run: npm ci --legacy-peer-deps
+
+      - name: Run Unit Tests 🧪
+        run: npm test -- --watch=false --browsers=ChromeHeadless
+
+      - name: Build GitHub Page 🔧
+        run: npm run build-github-page
+
+  build-and-deploy:
+    needs: ci
+    if: github.event_name == 'push'
+    concurrency: ci-${{ github.ref }} # Recommended if you intend to make multiple deployments in quick succession.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 🟢
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
 
       - name: Install and Build 🔧
         run: |

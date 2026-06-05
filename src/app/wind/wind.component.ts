@@ -1,4 +1,4 @@
-import { Component, AfterViewInit } from '@angular/core';
+import { Component, AfterViewInit, ChangeDetectionStrategy, OnDestroy } from '@angular/core';
 import { LocationService } from '../services/location.service';
 import { WindService } from '../services/wind.service';
 import { UnitToString } from '../util/unit-to-string';
@@ -12,6 +12,7 @@ import {
   ApexYAxis,
   ApexAnnotations,
   ApexNonAxisChartSeries,
+  ApexTheme,
 } from 'ng-apexcharts';
 import { ViewChild } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
@@ -26,6 +27,7 @@ export type ChartOptions = {
   xaxis: ApexXAxis;
   yaxis: ApexYAxis;
   annotations: ApexAnnotations;
+  theme: ApexTheme;
 };
 
 @Component({
@@ -39,9 +41,10 @@ export type ChartOptions = {
     MatGridListModule,
   ],
   templateUrl: './wind.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './wind.component.css',
 })
-export class WindComponent {
+export class WindComponent implements OnDestroy {
   @ViewChild('chart', { static: false }) chartComponent: ChartComponent | undefined;
   @ViewChild('chartWF', { static: false }) chartWFComponent: ChartComponent | undefined;
   public chartOptions: ChartOptions = {
@@ -53,6 +56,7 @@ export class WindComponent {
     ],
     chart: {
       type: 'line',
+      background: 'transparent',
     },
     title: {
       text: 'Wind Directorion History',
@@ -60,6 +64,7 @@ export class WindComponent {
     xaxis: { labels: { show: false } },
     yaxis: { decimalsInFloat: 0 },
     annotations: {},
+    theme: { mode: 'dark' },
   };
   public chartOptionsWF: ChartOptions = {
     series: [
@@ -70,6 +75,7 @@ export class WindComponent {
     ],
     chart: {
       type: 'line',
+      background: 'transparent',
     },
     title: {
       text: 'Wind Directorion Frequency',
@@ -98,7 +104,7 @@ export class WindComponent {
           label: {
             borderColor: '#B3F7CA',
             style: {
-              color: '#fff',
+              color: '#000',
               background: '#B3F7CA',
             },
             text: 'Calculated wind',
@@ -106,32 +112,76 @@ export class WindComponent {
         },
       ],
     },
+    theme: { mode: 'dark' },
   };
 
   headingText: string = '360°';
   calculatedWindDirectionText: string = '360°';
   speedText: string = '00kt';
   configuredWindText: string = '360°';
+  private updateIntervalId?: ReturnType<typeof setInterval>;
+  private chartUpdateIntervalId?: ReturnType<typeof setInterval>;
+  private frequencyChartUpdateIntervalId?: ReturnType<typeof setInterval>;
+  private unsubscribeForLocation?: () => void;
+  private readonly visibilityChangeHandler = () => this.handleVisibilityChange();
 
   constructor(
     private locationService: LocationService,
     private windService: WindService
   ) {
 
-    locationService.subscribeForLocation((location: GeolocationPosition) => {
-      this.handleUpdate();
+    this.unsubscribeForLocation = locationService.subscribeForLocation((location: GeolocationPosition) => {
+      if (!document.hidden) {
+        this.handleUpdate();
+      }
     });
-    setInterval(() => {
-      this.handleUpdate();
-    }, 100);
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+    this.startIntervals();
+    this.handleUpdate();
+  }
 
-    setInterval(() => {
+  ngOnDestroy() {
+    document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+    this.stopIntervals();
+    this.unsubscribeForLocation?.();
+  }
+
+  private startIntervals() {
+    if (document.hidden || this.updateIntervalId) {
+      return;
+    }
+
+    this.updateIntervalId = setInterval(() => {
+      this.handleUpdate();
+    }, 500);
+
+    this.chartUpdateIntervalId = setInterval(() => {
       this.handleChartUpdate();
     }, 1000);
 
-    setInterval(() => {
+    this.frequencyChartUpdateIntervalId = setInterval(() => {
       this.handleFrequencyChartUpdate();
     }, 1000);
+  }
+
+  private stopIntervals() {
+    clearInterval(this.updateIntervalId);
+    clearInterval(this.chartUpdateIntervalId);
+    clearInterval(this.frequencyChartUpdateIntervalId);
+    this.updateIntervalId = undefined;
+    this.chartUpdateIntervalId = undefined;
+    this.frequencyChartUpdateIntervalId = undefined;
+  }
+
+  private handleVisibilityChange() {
+    if (document.hidden) {
+      this.stopIntervals();
+    } else {
+      this.handleUpdate();
+      this.handleChartUpdate();
+      this.handleFrequencyChartUpdate();
+      this.startIntervals();
+    }
   }
 
   handleUpdate() {
