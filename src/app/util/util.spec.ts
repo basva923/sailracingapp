@@ -121,4 +121,22 @@ describe('Util', () => {
       0
     );
   });
+
+  it('should calculate cardinal bearings in radians', () => {
+    expect(Util.bearing(0, 0, 1, 0)).toBeCloseTo(0, 6);
+    expect(Util.bearing(0, 0, 0, 1)).toBeCloseTo(Math.PI / 2, 6);
+    expect(Util.bearing(0, 0, -1, 0)).toBeCloseTo(Math.PI, 6);
+    expect(Util.bearing(0, 0, 0, -1)).toBeCloseTo(-Math.PI / 2, 6);
+  });
+
+  it('should handle edge cases for existing helpers', () => {
+    expect(Util.toRadians(0)).toBe(0);
+    expect(Util.toRadians(-90)).toBeCloseTo(-Math.PI / 2, 6);
+    expect(Util.normaliseDegrees(1081)).toBe(1);
+    expect(Util.angleDiff(0, 180)).toBe(-180);
+    expect(Util.angleDiff(180, 0)).toBe(-180);
+    expect(Util.haversineDistanceBetweenPoints(51, 5, 51, 5)).toBe(0);
+    expect(Util.distanceToLine(0, 0, 0, 1, 0, 0.5)).toBeCloseTo(0, 6);
+    expect(Util.bearing(51, 5, 51, 5)).toBe(0);
+  });
 });
