@@ -12,6 +12,7 @@ import {
   ApexYAxis,
   ApexAnnotations,
   ApexNonAxisChartSeries,
+  ApexTheme,
 } from 'ng-apexcharts';
 import { ViewChild } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
@@ -26,6 +27,7 @@ export type ChartOptions = {
   xaxis: ApexXAxis;
   yaxis: ApexYAxis;
   annotations: ApexAnnotations;
+  theme: ApexTheme;
 };
 
 @Component({
@@ -54,6 +56,7 @@ export class WindComponent implements OnDestroy {
     ],
     chart: {
       type: 'line',
+      background: 'transparent',
     },
     title: {
       text: 'Wind Directorion History',
@@ -61,6 +64,7 @@ export class WindComponent implements OnDestroy {
     xaxis: { labels: { show: false } },
     yaxis: { decimalsInFloat: 0 },
     annotations: {},
+    theme: { mode: 'dark' },
   };
   public chartOptionsWF: ChartOptions = {
     series: [
@@ -71,6 +75,7 @@ export class WindComponent implements OnDestroy {
     ],
     chart: {
       type: 'line',
+      background: 'transparent',
     },
     title: {
       text: 'Wind Directorion Frequency',
@@ -99,7 +104,7 @@ export class WindComponent implements OnDestroy {
           label: {
             borderColor: '#B3F7CA',
             style: {
-              color: '#fff',
+              color: '#000',
               background: '#B3F7CA',
             },
             text: 'Calculated wind',
@@ -107,6 +112,7 @@ export class WindComponent implements OnDestroy {
         },
       ],
     },
+    theme: { mode: 'dark' },
   };
 
   headingText: string = '360°';

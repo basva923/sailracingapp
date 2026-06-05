@@ -8,12 +8,12 @@
   <mat-grid-list cols="1" rowHeight="300px" gutterSize="16px">
     <mat-grid-tile>
       <apx-chart [series]="chartOptions.series" [chart]="chartOptions.chart" [title]="chartOptions.title"
-        [xaxis]="chartOptions.xaxis" [yaxis]="chartOptions.yaxis" #chart></apx-chart>
+        [xaxis]="chartOptions.xaxis" [yaxis]="chartOptions.yaxis" [theme]="chartOptions.theme" #chart></apx-chart>
     </mat-grid-tile>
     <mat-grid-tile>
       <apx-chart [series]="chartOptionsWF.series" [chart]="chartOptionsWF.chart" [title]="chartOptionsWF.title"
         [xaxis]="chartOptionsWF.xaxis" [yaxis]="chartOptionsWF.yaxis" [annotations]="chartOptionsWF.annotations"
-        #chartWF></apx-chart>
+        [theme]="chartOptionsWF.theme" #chartWF></apx-chart>
     </mat-grid-tile>
   </mat-grid-list>
 
