@@ -20,10 +20,12 @@ describe('AppComponent', () => {
     expect(app.title).toEqual('sailracingapp');
   });
 
-  it('should render title', () => {
+  it('should render the router outlet inside the container', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, sailracingapp');
+    const container = compiled.querySelector('.container-fluid');
+    expect(container).not.toBeNull();
+    expect(container?.querySelector('router-outlet')).not.toBeNull();
   });
 });

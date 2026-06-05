@@ -4,12 +4,12 @@ Use this file as the quick-start guide for coding agents working in this reposit
 
 ## Project overview
 
-Sailracingapp is an Angular 17 single-page application for sailing race assistance. Planned and existing feature areas include a start timer, wind information, heading, speed, start line tooling, maps, and racing analytics.
+Sailracingapp is an Angular 21 single-page application for sailing race assistance. Planned and existing feature areas include a start timer, wind information, heading, speed, start line tooling, maps, and racing analytics.
 
 ## Tech stack
 
-- Angular 17
-- TypeScript 5.4 with strict compiler settings
+- Angular 21
+- TypeScript 5.9 with strict compiler settings
 - Bootstrap 5
 - RxJS
 - Jasmine/Karma for tests
@@ -32,10 +32,8 @@ Sailracingapp is an Angular 17 single-page application for sailing race assistan
 Install dependencies from the lockfile:
 
 ```sh
-npm ci --legacy-peer-deps
+npm ci
 ```
-
-The `--legacy-peer-deps` flag is currently needed because the installed Angular package versions have a peer dependency mismatch.
 
 ## Common commands
 
