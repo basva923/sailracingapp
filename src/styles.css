@@ -1,1 +1,10 @@
 /* You can add global styles to this file, and also import other style files */
+
+/* Dark theme tuned for battery life: true black background on OLED displays
+   draws the least power. Bootstrap's dark theme is enabled via
+   data-bs-theme="dark" on the <html> element in index.html. */
+[data-bs-theme='dark'] {
+  --bs-body-bg: #000000;
+  --bs-body-bg-rgb: 0, 0, 0;
+}
+
