@@ -5,7 +5,6 @@ import { UnitToString } from '../util/unit-to-string';
 
 @Component({
   selector: 'app-timer',
-  standalone: true,
   imports: [CommonModule],
   templateUrl: './timer.component.html',
   styleUrl: './timer.component.css',

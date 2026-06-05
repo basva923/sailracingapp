@@ -10,10 +10,10 @@ This guide helps contributors and agents get productive quickly.
 ## Install dependencies
 
 ```sh
-npm ci --legacy-peer-deps
+npm ci
 ```
 
-Use the lockfile for reproducible installs. The legacy peer dependency flag is currently required for the Angular dependency set in this repository.
+Use the lockfile for reproducible installs.
 
 ## Run locally
 

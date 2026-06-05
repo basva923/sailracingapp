@@ -5,7 +5,6 @@ import { WindComponent } from '../wind/wind.component';
 
 @Component({
   selector: 'app-home',
-  standalone: true,
   imports: [TimerComponent, NgbNavModule, WindComponent],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
