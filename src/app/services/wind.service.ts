@@ -7,16 +7,40 @@ import { Util } from '../util/util';
 })
 export class WindService {
   private windDirection: number = 0;
+  private logWindIntervalId?: ReturnType<typeof setInterval>;
+  private readonly visibilityChangeHandler = () => this.handleVisibilityChange();
   public angleOfAttack: number = 45;
   private windDirectionHistory: number[] = [];
   private readonly HISTORY_SIZE = 60 * 60 * 8;
   private windDirectionFrequency: number[] = [];
 
   constructor(private locationService: LocationService) {
-    const self = this;
     this.resetWindDirectionFrequency();
     locationService.subscribeForLocation((location: GeolocationPosition) => {});
-    setInterval(() => self.logWind(), 1000);
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+    this.startLogWindInterval();
+  }
+
+  private startLogWindInterval() {
+    if (document.hidden || this.logWindIntervalId) {
+      return;
+    }
+
+    this.logWindIntervalId = setInterval(() => this.logWind(), 1000);
+  }
+
+  private stopLogWindInterval() {
+    clearInterval(this.logWindIntervalId);
+    this.logWindIntervalId = undefined;
+  }
+
+  private handleVisibilityChange() {
+    if (document.hidden) {
+      this.stopLogWindInterval();
+    } else {
+      this.logWind();
+      this.startLogWindInterval();
+    }
   }
 
   setPortTack() {

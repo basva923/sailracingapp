@@ -18,28 +18,54 @@ export class LocationService {
   private alpha: number = 0;
   private beta: number = 0;
   private gamma: number = 0;
+  private watchId: number | null = null;
+  private readonly visibilityChangeHandler = () => this.handleVisibilityChange();
 
   private reversedPhone = false;
 
   constructor() {
-    // start gps watch
-    const self = this;
-    navigator.geolocation.watchPosition(
+    this.startWatch();
+
+    window.addEventListener(
+      'deviceorientationabsolute',
+      (e) => this.handleOrientationChange(e),
+      true
+    );
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+  }
+
+  private startWatch() {
+    if (document.hidden || this.watchId !== null) {
+      return;
+    }
+
+    this.watchId = navigator.geolocation.watchPosition(
       (position) => {
-        self.locations.push(position);
-        self.currentLocationEvent.dispatchEvent(new LocationEvent(position));
+        this.locations.push(position);
+        this.currentLocationEvent.dispatchEvent(new LocationEvent(position));
       },
       (error) => {
         console.error(error);
       },
       { enableHighAccuracy: true }
     );
+  }
 
-    window.addEventListener(
-      'deviceorientationabsolute',
-      (e) => self.handleOrientationChange(e),
-      true
-    );
+  private stopWatch() {
+    if (this.watchId === null) {
+      return;
+    }
+
+    navigator.geolocation.clearWatch(this.watchId);
+    this.watchId = null;
+  }
+
+  private handleVisibilityChange() {
+    if (document.hidden) {
+      this.stopWatch();
+    } else {
+      this.startWatch();
+    }
   }
 
   handleOrientationChange(event: DeviceOrientationEvent) {
@@ -89,9 +115,11 @@ export class LocationService {
   public subscribeForLocation(
     callback: (location: GeolocationPosition) => void
   ) {
-    this.currentLocationEvent.addEventListener('newLocation', (event) => {
+    const handler = (event: Event) => {
       callback((event as LocationEvent).location);
-    });
+    };
+    this.currentLocationEvent.addEventListener('newLocation', handler);
+    return () => this.currentLocationEvent.removeEventListener('newLocation', handler);
   }
 
   set phoneIsPointingForward(pointingForward: boolean) {

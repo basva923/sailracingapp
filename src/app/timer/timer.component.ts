@@ -1,5 +1,5 @@
 
-import { Component, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnDestroy } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
@@ -22,7 +22,10 @@ import { StartlineService } from '../services/startline.service';
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './timer.component.css',
 })
-export class TimerComponent {
+export class TimerComponent implements OnDestroy {
+  private timerIntervalId?: ReturnType<typeof setInterval>;
+  private readonly visibilityChangeHandler = () => this.handleVisibilityChange();
+
   timeLeft: string = '---';
   distanceToLine: string = '---';
   timeToKill: string = '---';
@@ -33,13 +36,45 @@ export class TimerComponent {
     private timerService: TimerService,
     protected startLineService: StartlineService
   ) {
-    const self = this;
-    setInterval(() => {
-      self.calcTimeLeft();
-      self.calcDistanceToLine();
-      self.calcTimeToKill();
-      self.calcDistanceBetweenBooys();
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+    this.startInterval();
+    this.updateValues();
+  }
+
+  ngOnDestroy() {
+    document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+    this.stopInterval();
+  }
+
+  private startInterval() {
+    if (document.hidden || this.timerIntervalId) {
+      return;
+    }
+
+    this.timerIntervalId = setInterval(() => {
+      this.updateValues();
     }, 500);
+  }
+
+  private stopInterval() {
+    clearInterval(this.timerIntervalId);
+    this.timerIntervalId = undefined;
+  }
+
+  private handleVisibilityChange() {
+    if (document.hidden) {
+      this.stopInterval();
+    } else {
+      this.updateValues();
+      this.startInterval();
+    }
+  }
+
+  private updateValues() {
+    this.calcTimeLeft();
+    this.calcDistanceToLine();
+    this.calcTimeToKill();
+    this.calcDistanceBetweenBooys();
   }
 
   startInMinutes(minutes: number) {
