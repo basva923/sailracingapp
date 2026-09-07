@@ -48,3 +48,8 @@ Thumbs.db
 *.ap_
 *.dex
 .kotlin/
+
+# Local release signing material
+keystore.properties
+*.jks
+*.keystore

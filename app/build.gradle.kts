@@ -1,9 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kover)
 }
+
+// Release signing material lives in keystore.properties, which is kept out of git.
+// Read through a provider so the configuration cache tracks the file.
+val releaseKeystore = providers.fileContents(
+    rootProject.layout.projectDirectory.file("keystore.properties"),
+).asText.map { text -> Properties().apply { load(text.reader()) } }.orNull
 
 android {
     namespace = "com.sailracing.app"
@@ -19,8 +27,22 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        releaseKeystore?.let { props ->
+            create("release") {
+                storeFile = file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Without keystore.properties the release build falls back to the debug
+            // key, so it still installs on a development phone.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
