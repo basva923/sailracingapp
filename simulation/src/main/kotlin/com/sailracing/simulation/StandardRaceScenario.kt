@@ -5,15 +5,18 @@ import com.sailracing.domain.geo.Geo
 import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.race.RaceEvent
 import com.sailracing.domain.wind.Tack
+import kotlin.math.roundToInt
 
 /**
  * A complete race, from marking the line to crossing the finish, exercising every feature of the app:
  *
  * 1. Sail along the line and mark the pin end and the boat end.
  * 2. Enter a deliberately wrong wind direction and tack angle, then correct it from each tack.
+ *    Enter the windward mark as the committee posted it: a bearing and distance from the line.
  * 3. Start a 5 minute countdown a few seconds late and sync it.
  * 4. Shuttle below the line, hold head-to-wind at a launch point and cross at the gun.
- * 5. Beat to the windward mark in oscillating wind (tacking on the laylines).
+ * 5. Beat to the windward mark in an oscillating wind that is a little veered on the right of the course,
+ *    zigzagging up a corridor around the axis so both sides get sailed.
  * 6. Run to the leeward mark (gybing) and beat back to the finish.
  * 7. Stop the timer.
  */
@@ -34,15 +37,24 @@ public object StandardRaceScenario {
     public const val LATE_PRESS_SECONDS: Double = 3.0
     public const val PRESTART_STANDOFF_METERS: Double = 60.0
 
+    /**
+     * @property beatCorridorHalfWidthMeters how far either side of the course axis the beat goes before tacking;
+     *   null to sail out to the layline in one board.
+     */
     public data class Config(
         val lineCenter: GeoPoint = GeoPoint(51.14, 5.83),
-        val wind: WindModel = WindModel(meanDirectionDegrees = 20.0, oscillationDegrees = 8.0, periodSeconds = 240.0),
+        val wind: WindModel = WindModel(meanDirectionDegrees = 20.0, oscillationDegrees = 8.0, periodSeconds = 240.0, shearDegreesPerMeter = DEFAULT_SHEAR_DEGREES_PER_METER),
         val model: SailingModel = SailingModel(),
         val noise: NoiseModel = NoiseModel.none(),
         val lineLengthMeters: Double = 100.0,
         val beatLengthMeters: Double = 500.0,
         val wrongWindOffsetDegrees: Int = 15,
+        val beatCorridorHalfWidthMeters: Double? = DEFAULT_CORRIDOR_HALF_WIDTH_METERS,
     )
+
+    /** A veer of 3.6 degrees at 120 m to the right of the axis, as a shore might give: enough to favour that side. */
+    public const val DEFAULT_SHEAR_DEGREES_PER_METER: Double = 0.03
+    public const val DEFAULT_CORRIDOR_HALF_WIDTH_METERS: Double = 120.0
 
     public fun course(config: Config = Config()): RaceCourse =
         RaceCourse.square(config.lineCenter, config.wind.meanDirectionDegrees, config.lineLengthMeters, config.beatLengthMeters)
@@ -81,13 +93,14 @@ public object StandardRaceScenario {
                 onEnd = listOf { RaceEvent.SetWindFromStarboardTack }),
             Leg(WIND_PORT, helm = { CloseHauled(Tack.PORT) }, until = Termination.After(40.0),
                 onEnd = listOf { RaceEvent.SetWindFromPortTack }),
-            Leg(TO_PRESTART, helm = { GoTo(prestartArea) }, until = Termination.Within(prestartArea, 8.0)),
+            Leg(TO_PRESTART, helm = { GoTo(prestartArea) }, until = Termination.Within(prestartArea, 8.0),
+                onStart = listOf { RaceEvent.SetWindwardMarkFromLine(wind.roundToInt(), config.beatLengthMeters) }),
             Leg(COUNTDOWN_SYNC, helm = { HoldWindAngle(90.0) }, until = Termination.After(LATE_PRESS_SECONDS),
                 onStart = listOf { now -> RaceEvent.StartCountdown(COUNTDOWN_MINUTES, now) },
                 onEnd = listOf { now -> RaceEvent.SyncCountdown(now) }),
             Leg(START, helm = { legStart -> TimedStart(legStart + gunAfterSync, PRESTART_STANDOFF_METERS) },
                 until = Termination.OnCourseSide),
-            Leg(BEAT, helm = { BeatTo(course.windwardMark, Tack.STARBOARD) }, until = Termination.Within(course.windwardMark, 15.0)),
+            Leg(BEAT, helm = { BeatTo(course.windwardMark, Tack.STARBOARD, config.beatCorridorHalfWidthMeters) }, until = Termination.Within(course.windwardMark, 15.0)),
             Leg(RUN, helm = { RunTo(course.leewardMark, Tack.STARBOARD) }, until = Termination.Within(course.leewardMark, 15.0)),
             Leg(FINISH, helm = { BeatTo(course.lineCenter, Tack.PORT) }, until = Termination.OnCourseSide,
                 onEnd = listOf { RaceEvent.StopTimer }),

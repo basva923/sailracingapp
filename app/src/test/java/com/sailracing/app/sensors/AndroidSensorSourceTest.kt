@@ -91,20 +91,29 @@ class AndroidSensorSourceTest {
         shadowOf(locationManager).simulateLocation(location)
         ShadowLooper.idleMainLooper()
         val event = ShadowSensorManager.createSensorEvent(4, Sensor.TYPE_ROTATION_VECTOR)
-        // Identity rotation: phone flat, pointing north.
-        event.values[0] = 0f
+        // Rotated 90 degrees about the east axis: the phone stands upright with its screen facing south.
+        event.values[0] = 0.70710678f
         event.values[1] = 0f
         event.values[2] = 0f
-        event.values[3] = 1f
+        event.values[3] = 0.70710678f
         shadowOf(sensorManager).sendSensorEventToListeners(event)
+        ShadowLooper.idleMainLooper()
+        // Upright, back of the phone facing east.
+        val east = ShadowSensorManager.createSensorEvent(4, Sensor.TYPE_ROTATION_VECTOR)
+        east.values[0] = 0.5f
+        east.values[1] = -0.5f
+        east.values[2] = -0.5f
+        east.values[3] = 0.5f
+        shadowOf(sensorManager).sendSensorEventToListeners(east)
         ShadowLooper.idleMainLooper()
 
         val fix = collected.filterIsInstance<RaceEvent.FixReceived>().firstOrNull()
         assertIs<RaceEvent.FixReceived>(fix)
         assertEquals(42, fix.fix.timestampMillis)
-        val compass = collected.filterIsInstance<RaceEvent.CompassUpdated>().firstOrNull()
-        assertIs<RaceEvent.CompassUpdated>(compass)
-        assertEquals(0.0, compass.headingDegrees, 1e-6)
+        val compass = collected.filterIsInstance<RaceEvent.CompassUpdated>()
+        assertEquals(2, compass.size)
+        assertEquals(0.0, compass[0].headingDegrees, 1e-4)
+        assertEquals(90.0, compass[1].headingDegrees, 1e-4)
 
         job.cancel()
         assertTrue(shadowOf(locationManager).getRequestLocationUpdateListeners().isEmpty())

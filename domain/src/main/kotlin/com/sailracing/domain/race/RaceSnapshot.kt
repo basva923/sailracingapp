@@ -1,14 +1,17 @@
 package com.sailracing.domain.race
 
+import com.sailracing.domain.course.CourseModel
 import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.startline.StartLineSolution
 import com.sailracing.domain.stats.SpeedStats
+import com.sailracing.domain.strategy.UpwindPlan
 import com.sailracing.domain.timer.RacePhase
 import com.sailracing.domain.wind.SailingState
 import com.sailracing.domain.wind.TargetHeadings
 import com.sailracing.domain.wind.WindHistogram
 import com.sailracing.domain.wind.WindHistory
+import com.sailracing.domain.wind.WindReference
 import com.sailracing.domain.wind.WindSettings
 
 /**
@@ -40,9 +43,13 @@ public data class RaceSnapshot(
     val headingSource: HeadingSource?,
 
     val windSettings: WindSettings,
+    /** The wind everything is judged against: the histogram's centre once measured, the set wind until then. */
+    val windReference: WindReference,
     val sailing: SailingState?,
     val estimatedWindDegrees: Double?,
+    /** The estimated wind relative to the reference: positive = veered. */
     val shiftDegrees: Double?,
+    /** The close-hauled and downwind headings around the reference wind. */
     val targetHeadings: TargetHeadings,
     val targetHeadingDegrees: Double?,
     val headingErrorDegrees: Double?,
@@ -51,4 +58,9 @@ public data class RaceSnapshot(
     val speedStats: SpeedStats,
     val histogram: WindHistogram,
     val history: WindHistory,
+
+    /** The course as the map shows it; null until there is a position to centre its frame on. */
+    val course: CourseModel?,
+    val trackPointCount: Int,
+    val plan: UpwindPlan,
 )

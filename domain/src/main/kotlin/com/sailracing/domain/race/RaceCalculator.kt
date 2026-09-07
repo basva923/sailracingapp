@@ -1,21 +1,33 @@
 package com.sailracing.domain.race
 
+import com.sailracing.domain.course.CourseFrame
+import com.sailracing.domain.course.CourseInputs
+import com.sailracing.domain.course.CourseModel
+import com.sailracing.domain.geo.GeoPoint
+import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.startline.StartLineCalculator
+import com.sailracing.domain.strategy.UpwindStrategy
 import com.sailracing.domain.timer.CountdownTimer
 import com.sailracing.domain.wind.WindMath
 
-/** Derives the displayable [RaceSnapshot] from a [RaceState] at a given moment. Pure and allocation-light. */
+/**
+ * Derives the displayable [RaceSnapshot] from a [RaceState] at a given moment. Pure: the same state and
+ * time always give the same snapshot; [previous] only lets the course model be reused when nothing it
+ * depends on has changed (the clock ticks several times a second, the track grows once a second).
+ */
 public object RaceCalculator {
 
-    public fun snapshot(state: RaceState, nowMillis: Long): RaceSnapshot {
+    public fun snapshot(state: RaceState, nowMillis: Long, previous: RaceSnapshot? = null): RaceSnapshot {
         val fix = state.navigation.lastFix
         val fixAge = fix?.let { nowMillis - it.timestampMillis }
         val fixIsFresh = fixAge != null && fixAge <= state.settings.fixMaxAgeMillis
         val remaining = CountdownTimer.remainingMillis(state.timer, nowMillis)
         val windSettings = state.wind.settings
+        val reference = state.wind.reference
+        val referenceDegrees = reference.directionDegrees
         val heading = state.navigation.headingDegrees
 
-        val line = fix?.let { StartLineCalculator.solve(state.startLine, it.point, windSettings.directionDegrees.toDouble()) }
+        val line = fix?.let { StartLineCalculator.solve(state.startLine, it.point, referenceDegrees) }
         val (approachSpeed, measured) = approachSpeed(state)
         val timeToLine = line?.let { StartLineCalculator.timeToLineSeconds(it.distanceMeters, approachSpeed) }
         val timeToKill = if (remaining != null && timeToLine != null) {
@@ -24,10 +36,32 @@ public object RaceCalculator {
             null
         }
 
-        val sailing = heading?.let { WindMath.sailingState(it, windSettings.directionDegrees.toDouble()) }
-        val estimatedWind = heading?.let { WindMath.estimatedWindDirection(it, windSettings) }
-        val target = sailing?.let { WindMath.targetHeading(windSettings, it) }
+        val sailing = heading?.let { WindMath.sailingState(it, referenceDegrees) }
+        val estimatedWind = heading?.let { WindMath.estimatedWindDirection(it, windSettings, referenceDegrees) }
+        val target = sailing?.let { WindMath.targetHeading(windSettings, it, referenceDegrees) }
         val speed = fix?.speedMps
+
+        val course = courseOrigin(state.startLine, state.track.points.firstOrNull()?.point ?: fix?.point)?.let { origin ->
+            val inputs = CourseInputs(
+                frame = CourseFrame(origin, referenceDegrees),
+                line = state.startLine,
+                windwardMark = state.windwardMark,
+                boat = fix?.point,
+                tackAngleDegrees = windSettings.tackAngleDegrees,
+                downwindAngleDegrees = windSettings.downwindAngleDegrees,
+            )
+            previous?.course?.takeIf { it.isFor(state.track, inputs) } ?: CourseModel.build(state.track, inputs)
+        }
+        val plan = UpwindStrategy.plan(
+            windReference = reference,
+            histogram = state.wind.histogram,
+            history = state.wind.history,
+            sailing = sailing,
+            estimatedWindDegrees = estimatedWind,
+            grid = course?.grid,
+            upwindMaxTwaDegrees = state.settings.upwindMaxTwaDegrees,
+            downwindMinTwaDegrees = state.settings.downwindMinTwaDegrees,
+        )
 
         return RaceSnapshot(
             nowMillis = nowMillis,
@@ -49,18 +83,28 @@ public object RaceCalculator {
             headingDegrees = heading,
             headingSource = state.navigation.headingSource,
             windSettings = windSettings,
+            windReference = reference,
             sailing = sailing,
             estimatedWindDegrees = estimatedWind,
-            shiftDegrees = estimatedWind?.let { WindMath.shiftDegrees(windSettings.directionDegrees.toDouble(), it) },
-            targetHeadings = WindMath.targetHeadings(windSettings),
+            shiftDegrees = estimatedWind?.let { WindMath.shiftDegrees(referenceDegrees, it) },
+            targetHeadings = WindMath.targetHeadings(windSettings, referenceDegrees),
             targetHeadingDegrees = target,
             headingErrorDegrees = if (heading != null && target != null) WindMath.headingErrorDegrees(heading, target) else null,
             vmgMps = if (speed != null && sailing != null) WindMath.velocityMadeGood(speed, sailing) else null,
             speedStats = state.speedStats,
             histogram = state.wind.histogram,
             history = state.wind.history,
+            course = course,
+            trackPointCount = state.track.points.size,
+            plan = plan,
         )
     }
+
+    /**
+     * The origin of the map's frame: the middle of the start line, one marked end while the other is
+     * missing, and otherwise where the track started (or the boat is), so the map is useful before the line is set.
+     */
+    public fun courseOrigin(line: StartLine, fallback: GeoPoint?): GeoPoint? = line.middle() ?: fallback
 
     /** The speed used for time-to-line, and whether it is a measured value. */
     public fun approachSpeed(state: RaceState): Pair<Double, Boolean> = when (val setting = state.settings.approachSpeed) {

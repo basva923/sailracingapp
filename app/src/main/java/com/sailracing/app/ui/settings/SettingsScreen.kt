@@ -23,8 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.sailracing.app.data.AppSettings
-import com.sailracing.app.ui.components.ActionButton
-import com.sailracing.app.ui.components.ConfirmDialog
 import com.sailracing.app.ui.components.NumberInputDialog
 import com.sailracing.app.ui.format.Formatters
 import com.sailracing.app.ui.theme.RaceColors
@@ -34,12 +32,9 @@ import java.util.Locale
 
 class SettingsActions(
     val update: ((AppSettings) -> AppSettings) -> Unit,
-    val resetWindStatistics: () -> Unit,
-    val resetSpeedStatistics: () -> Unit,
-    val endSession: () -> Unit,
 )
 
-private enum class SettingsDialog { APPROACH_SPEED, TEN_SECOND_WINDOW, SECOND_WINDOW, UPWIND_MAX_TWA, SIM_SPEED, RESET_STATS, END_SESSION }
+private enum class SettingsDialog { APPROACH_SPEED, TEN_SECOND_WINDOW, SECOND_WINDOW, UPWIND_MAX_TWA, SIM_SPEED }
 
 @Composable
 fun SettingsScreen(settings: AppSettings, actions: SettingsActions, modifier: Modifier = Modifier, versionName: String = "") {
@@ -113,7 +108,8 @@ fun SettingsScreen(settings: AppSettings, actions: SettingsActions, modifier: Mo
             )
             SwitchRow(
                 title = "Phone mounted backwards",
-                subtitle = "Adds 180° to the compass heading. The GPS course is used whenever the boat moves.",
+                subtitle = "The compass expects the phone upright on the mast with the screen facing aft. " +
+                    "Switch on when the screen faces the bow. The GPS course is used whenever the boat moves.",
                 checked = race.compassOffsetDegrees == 180,
                 onCheckedChange = { reversed -> actions.update { it.copy(race = it.race.copy(compassOffsetDegrees = if (reversed) 180 else 0)) } },
                 testTag = "phoneReversed",
@@ -150,21 +146,10 @@ fun SettingsScreen(settings: AppSettings, actions: SettingsActions, modifier: Mo
                 testTag = "simulationSpeed",
             )
 
-        SectionHeader("Session")
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActionButton("Reset statistics", onClick = { dialog = SettingsDialog.RESET_STATS }, modifier = Modifier.weight(1f), testTag = "resetStatistics")
-                ActionButton(
-                    "End session",
-                    onClick = { dialog = SettingsDialog.END_SESSION },
-                    modifier = Modifier.weight(1f),
-                    containerColor = RaceColors.Late,
-                    contentColor = RaceColors.Black,
-                    testTag = "endSession",
-                )
-            }
+        SectionHeader("About")
             Text(
-                "Ending the session switches off the GPS and the countdown. Sail Racing $versionName".trim(),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                "Sessions are started, ended and cleared on the Session screen. The racing area on the map follows the track. Sail Racing $versionName".trim(),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag("about"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = RaceColors.Muted,
             )
@@ -236,20 +221,6 @@ fun SettingsScreen(settings: AppSettings, actions: SettingsActions, modifier: Mo
                 actions.update { it.copy(simulation = it.simulation.copy(speedFactor = factor)) }
                 dialog = null
             },
-            onDismiss = { dialog = null },
-        )
-        SettingsDialog.RESET_STATS -> ConfirmDialog(
-            title = "Reset all statistics?",
-            text = "Wind histogram, shift history and speed averages will be cleared.",
-            confirmText = "Reset",
-            onConfirm = { actions.resetWindStatistics(); actions.resetSpeedStatistics(); dialog = null },
-            onDismiss = { dialog = null },
-        )
-        SettingsDialog.END_SESSION -> ConfirmDialog(
-            title = "End the session?",
-            text = "GPS tracking and the countdown stop. Reopen the app to start again.",
-            confirmText = "End session",
-            onConfirm = { actions.endSession(); dialog = null },
             onDismiss = { dialog = null },
         )
         null -> Unit

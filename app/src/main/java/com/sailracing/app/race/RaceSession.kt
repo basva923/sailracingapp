@@ -37,6 +37,8 @@ import kotlinx.coroutines.withContext
  * The single live race: owns the [RaceEngine], feeds it sensor events and clock ticks, plays cue effects,
  * restores and persists race data, and exposes the state to the UI and the foreground service.
  *
+ * A session is started and ended by the sailor (from the Session screen); its data (line, mark, track,
+ * statistics) outlives an end and is only forgotten by [RaceEvent.ClearSession].
  * All engine access is serialised on one dispatcher so events never interleave.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -64,6 +66,11 @@ class RaceSession(
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
+    private val _startedAtMillis = MutableStateFlow<Long?>(null)
+
+    /** When the current (or last) session was started, in the base clock's time. */
+    val startedAtMillis: StateFlow<Long?> = _startedAtMillis.asStateFlow()
+
     @Volatile
     var clock: Clock = baseClock
         private set
@@ -78,6 +85,7 @@ class RaceSession(
     suspend fun start() {
         if (_isRunning.value) return
         _isRunning.value = true
+        _startedAtMillis.value = baseClock.nowMillis()
 
         val initialSettings = repository.settings.first()
         val persisted = repository.persistedRace.first()
@@ -85,6 +93,7 @@ class RaceSession(
         withContext(engineContext) {
             applyLocked(RaceEvent.UpdateSettings(initialSettings.race))
             applyLocked(RaceEvent.SetStartLine(persisted.startLine))
+            applyLocked(RaceEvent.SetWindwardMark(persisted.windwardMark))
             applyLocked(RaceEvent.SetWindSettings(persisted.wind))
             applyLocked(RaceEvent.SetTimer(restorableTimer(persisted.timer)))
         }
@@ -127,7 +136,7 @@ class RaceSession(
 
     private fun publish() {
         _state.value = engine.state
-        _snapshot.value = RaceCalculator.snapshot(engine.state, clock.nowMillis())
+        _snapshot.value = RaceCalculator.snapshot(engine.state, clock.nowMillis(), previous = _snapshot.value)
     }
 
     private suspend fun tick() {
@@ -159,6 +168,7 @@ class RaceSession(
 
     private suspend fun persistChanges() = coroutineScope {
         launch { state.map { it.startLine }.distinctUntilChanged().drop(1).collect { repository.saveStartLine(it) } }
+        launch { state.map { it.windwardMark }.distinctUntilChanged().drop(1).collect { repository.saveWindwardMark(it) } }
         launch { state.map { it.wind.settings }.distinctUntilChanged().drop(1).collect { repository.saveWind(it) } }
         launch { state.map { it.timer }.distinctUntilChanged().drop(1).collect { repository.saveTimer(it) } }
     }

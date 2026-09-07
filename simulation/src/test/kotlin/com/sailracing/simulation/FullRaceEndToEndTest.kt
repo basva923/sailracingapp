@@ -10,10 +10,17 @@ import com.sailracing.domain.race.RaceEvent
 import com.sailracing.domain.race.RaceSettings
 import com.sailracing.domain.race.RaceSnapshot
 import com.sailracing.domain.race.RaceState
+import com.sailracing.domain.course.CourseModel
+import com.sailracing.domain.course.Side
+import com.sailracing.domain.course.TrackGrid
 import com.sailracing.domain.startline.LineSide
+import com.sailracing.domain.strategy.FavouredSide
+import com.sailracing.domain.strategy.TackAdvice
+import com.sailracing.domain.strategy.UpwindStrategy
 import com.sailracing.domain.timer.Cue
 import com.sailracing.domain.timer.RacePhase
 import com.sailracing.domain.wind.PointOfSail
+import com.sailracing.domain.wind.Tack
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.test.Test
@@ -154,13 +161,78 @@ class FullRaceEndToEndTest {
             val trueWind = result.windAt(t)
             val trueTwa = abs(Angles.signedDifference(heading, trueWind))
             if (abs(trueTwa - result.polar.upwindAngleDegrees) > 2.0) continue
-            val trueShift = Angles.signedDifference(s.windSettings.directionDegrees.toDouble(), trueWind)
+            // The shift is measured from the reference wind: the histogram's centre once it is measured.
+            val trueShift = Angles.signedDifference(s.windReference.directionDegrees, trueWind)
             assertWithin(3.0, trueShift, shift, "shift at $t")
             assertEquals(HeadingSource.COURSE_OVER_GROUND, s.headingSource)
             assertTrue(s.fixIsFresh)
             comparedShifts++
         }
         assertTrue(comparedShifts > 100, "compared $comparedShifts shifts")
+
+        // --- Tack advice: hold the lifted tack, tack when headed, judged against the histogram centre -----------
+        var agreed = 0
+        var judged = 0
+        for (t in (gun + 30_000)..beatEnd step 1_000) {
+            val s = at(t)
+            val plan = s.plan
+            if (!plan.referenceIsMeasured) continue
+            val heading = s.headingDegrees ?: continue
+            val trueWind = result.windAt(t)
+            if (abs(abs(Angles.signedDifference(heading, trueWind)) - result.polar.upwindAngleDegrees) > 2.0) continue
+            val trueShift = Angles.signedDifference(plan.referenceWindDegrees, trueWind)
+            if (abs(trueShift) < UpwindStrategy.SHIFT_DEAD_BAND_DEGREES + 2.0) continue
+            val liftedTack = if (trueShift > 0) Tack.STARBOARD else Tack.PORT
+            val expected = if (liftedTack == assertNotNull(s.sailing).tack) TackAdvice.HOLD else TackAdvice.TACK
+            judged++
+            if (plan.tackAdvice == expected) agreed++
+        }
+        assertTrue(judged > 60, "judged $judged tack advices")
+        assertTrue(agreed >= judged * 0.9, "tack advice agreed $agreed of $judged times")
+
+        // --- The map: the beat covers both sides of the course and the veered right side is favoured ---------------
+        val course = assertNotNull(beat.course)
+        val grid = course.grid
+        assertTrue(grid.side(Side.LEFT).upwindSamples >= UpwindStrategy.MIN_SIDE_SAMPLES, "left samples ${grid.side(Side.LEFT)}")
+        assertTrue(grid.side(Side.RIGHT).upwindSamples >= UpwindStrategy.MIN_SIDE_SAMPLES, "right samples ${grid.side(Side.RIGHT)}")
+        assertEquals(beat.trackPointCount, grid.totalVisits, "the area follows the track, so every point is in a cell")
+        val frame = course.frame
+        assertEquals(0.0, Geo.distanceMeters(frame.origin, result.course.lineCenter), 5.0)
+        assertWithin(4.0, result.wind.meanDirectionDegrees, frame.windDirectionDegrees, "the map is oriented on the measured mean wind")
+        assertTrue(course.trackPositions.size in 2..CourseModel.MAX_TRACK_POINTS + 1)
+        val markInFrame = frame.toCourse(result.course.windwardMark)
+        assertEquals(0.0, markInFrame.acrossMeters, 40.0)
+        assertEquals(500.0, markInFrame.upwindMeters, 40.0)
+        // The mark the sailor entered from the line is the real one, and it is the axis of the sides.
+        assertTrue(course.windwardMarkIsSet)
+        assertTrue(Geo.distanceMeters(assertNotNull(course.inputs.windwardMark), result.course.windwardMark) <= 10.0)
+        assertEquals(course.windwardMark, grid.axisTarget)
+        // The area is the track's bounding box in 10 m multiples, with the mark and the line inside it.
+        assertEquals(0.0, course.spec.cellSizeMeters % 10.0, 1e-9)
+        assertTrue(course.spec.columns <= 13 && course.spec.rows <= 13, "cells ${course.spec}")
+        assertNotNull(course.spec.cellOf(course.windwardMark))
+        assertNotNull(course.spec.cellOf(assertNotNull(course.pinEnd)))
+        assertTrue(course.spec.heightMeters >= 500.0 && course.spec.heightMeters < 700.0, "area ${course.spec}")
+        // The wind field shows the shear: measured cells on the right are veered relative to those on the left.
+        val measured = course.windField.cells.filter { it.measured }
+        assertTrue(measured.size >= 6, "measured cells ${measured.size}")
+        val rightShift = measured.filter { course.spec.center(it.cell).acrossMeters > 40.0 }.map { it.shiftDegrees }.average()
+        val leftShift = measured.filter { course.spec.center(it.cell).acrossMeters < -40.0 }.map { it.shiftDegrees }.average()
+        assertTrue(rightShift > leftShift + 2.0, "right $rightShift vs left $leftShift")
+        assertTrue(course.windField.cells.none { it.measured } || course.windField.cells.all { abs(it.shiftDegrees) < 30.0 })
+        // Halfway up the beat the app draws a line from the boat to the mark that stays inside the area.
+        val midBeat = at(gun + (beatEnd - gun) / 2 / 1000 * 1000)
+        val midCourse = assertNotNull(midBeat.course)
+        assertTrue(midCourse.route.size >= 2, "route ${midCourse.route}")
+        assertEquals(midCourse.boat, midCourse.route.first())
+        assertEquals(midCourse.windwardMark, midCourse.route.last())
+        assertTrue(midCourse.route.all { it.acrossMeters in midCourse.spec.leftMeters..midCourse.spec.rightMeters && it.upwindMeters in midCourse.spec.bottomMeters..midCourse.spec.topMeters })
+        val sides = beat.plan.sides
+        val windDifference = assertNotNull(sides.windDifferenceDegrees)
+        val expectedDifference = result.wind.shearDegreesPerMeter *
+            (averageAcross(result, grid, Side.RIGHT) - averageAcross(result, grid, Side.LEFT))
+        assertEquals(expectedDifference, windDifference, 2.5)
+        assertEquals(FavouredSide.RIGHT, beat.plan.favouredSide, "plan ${beat.plan}")
 
         // --- Speeds --------------------------------------------------------------------------------------------
         val runEnd = result.milestone(StandardRaceScenario.RUN)
@@ -178,6 +250,26 @@ class FullRaceEndToEndTest {
         assertNull(finish.remainingMillis)
         assertEquals(LineSide.COURSE, assertNotNull(finish.line).side)
         assertEquals(RacePhase.RACING, at(result.milestone(StandardRaceScenario.FINISH) - 1_000).phase)
+    }
+
+    /** The mean across-axis position of the close-hauled samples on one side, from the grid's cell centres. */
+    private fun averageAcross(result: SimulationResult, grid: TrackGrid, side: Side): Double {
+        val cells = grid.visited.filter { (cell, stats) -> grid.spec.side(cell, grid.axisTarget) == side && stats.upwindSamples > 0 }
+        val samples = cells.sumOf { it.second.upwindSamples }
+        return cells.sumOf { (cell, stats) -> grid.spec.center(cell).acrossMeters * stats.upwindSamples } / samples
+    }
+
+    @Test
+    fun `an even wind favours neither side`() {
+        val config = StandardRaceScenario.Config(wind = StandardRaceScenario.Config().wind.copy(shearDegreesPerMeter = 0.0))
+        val result = StandardRaceScenario.build(config)
+        val engine = RaceEngine()
+        var beat: RaceSnapshot? = null
+        replay(result, engine) { if (it.nowMillis == result.milestone(StandardRaceScenario.BEAT)) beat = it }
+        val plan = assertNotNull(beat).plan
+        assertNotNull(plan.sides.windDifferenceDegrees)
+        assertTrue(abs(assertNotNull(plan.sideScoreDegrees)) < UpwindStrategy.SIDE_DEAD_BAND_DEGREES, "plan $plan")
+        assertEquals(FavouredSide.EVEN, plan.favouredSide)
     }
 
     @Test

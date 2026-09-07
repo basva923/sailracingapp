@@ -38,6 +38,15 @@ class WindMathTest {
     }
 
     @Test
+    fun `the tack is judged against the reference wind when one is given`() {
+        // Against the set wind (0) a heading of 80 would be a reach; against the measured 25 it is close-hauled on port.
+        assertEquals(35.0, WindMath.estimatedWindDirection(80.0, settings, referenceDegrees = 25.0))
+        assertEquals(25.0, WindMath.estimatedWindDirection(340.0, settings, referenceDegrees = 25.0))
+        assertEquals(TargetHeadings(340.0, 70.0, 245.0, 165.0), WindMath.targetHeadings(settings, referenceDegrees = 25.0))
+        assertEquals(340.0, WindMath.targetHeading(settings, WindMath.sailingState(300.0, 25.0), referenceDegrees = 25.0))
+    }
+
+    @Test
     fun `shift is positive for a veer`() {
         assertEquals(5.0, WindMath.shiftDegrees(0.0, 5.0))
         assertEquals(-5.0, WindMath.shiftDegrees(0.0, 355.0))

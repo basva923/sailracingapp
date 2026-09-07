@@ -16,6 +16,9 @@ public data class RaceCourse(
 
     public val lineCenter: GeoPoint get() = Geo.destination(pinEnd, Geo.initialBearingDegrees(pinEnd, boatEnd), Geo.distanceMeters(pinEnd, boatEnd) / 2)
 
+    /** Distance of [position] to the right of the course axis (line centre to windward mark), looking upwind. */
+    public fun acrossMeters(position: GeoPoint): Double = Geo.crossTrackDistanceMeters(lineCenter, windwardMark, position)
+
     public companion object {
         /**
          * Lays a course square to the wind: the line is perpendicular to [windDirectionDegrees] with the pin

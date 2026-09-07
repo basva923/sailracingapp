@@ -23,10 +23,11 @@ public class ScenarioRunner(
         val milestones = linkedMapOf<String, Long>()
 
         var boat = initial
+        fun windAtBoat() = wind.directionAt(boat.timeSeconds, course.acrossMeters(boat.position))
         fun record() {
             val millis = (boat.timeSeconds * 1000).toLong()
             timeline += TimedEvent(millis, RaceEvent.FixReceived(fix(boat, millis)))
-            truth += TruthSample(millis, wind.directionAt(boat.timeSeconds), boat)
+            truth += TruthSample(millis, windAtBoat(), boat)
         }
         record()
 
@@ -36,9 +37,9 @@ public class ScenarioRunner(
             leg.onStart.forEach { timeline += TimedEvent(startMillis, it(startMillis)) }
             val helm = leg.helm(legStart)
 
-            while (!leg.until.isMet(boat, legStart, course, wind.directionAt(boat.timeSeconds))) {
+            while (!leg.until.isMet(boat, legStart, course, windAtBoat())) {
                 check(boat.timeSeconds < maxDurationSeconds) { "leg '${leg.name}' did not terminate within $maxDurationSeconds s" }
-                val windNow = wind.directionAt(boat.timeSeconds)
+                val windNow = windAtBoat()
                 val target = helm.steer(HelmContext(boat, windNow, course, model.polar))
                 boat = BoatDynamics.step(boat, target, windNow, model, STEP_SECONDS)
                 record()

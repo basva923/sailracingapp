@@ -1,5 +1,7 @@
 package com.sailracing.domain.race
 
+import com.sailracing.domain.course.Track
+import com.sailracing.domain.geo.Geo
 import com.sailracing.domain.race.TestFixtures.east
 import com.sailracing.domain.race.TestFixtures.fix
 import com.sailracing.domain.race.TestFixtures.north
@@ -10,6 +12,7 @@ import com.sailracing.domain.timer.Cue
 import com.sailracing.domain.timer.CuePolicy
 import com.sailracing.domain.timer.TimerState
 import com.sailracing.domain.wind.WindHistogram
+import com.sailracing.domain.wind.WindHistory
 import com.sailracing.domain.wind.WindSettings
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,7 +37,7 @@ class RaceReducerTest {
         assertEquals(1, state.wind.history.samples.size)
         assertEquals(1, state.speedStats.upwind.count)
         assertEquals(3.0, state.speedStats.upwind.mean)
-        assertEquals(1L, state.lastWindSampleSecond)
+        assertEquals(1L, state.lastSampleSecond)
 
         val later = state.apply(RaceEvent.FixReceived(fix(2_000)))
         assertEquals(2, later.wind.histogram.totalSamples)
@@ -44,7 +47,11 @@ class RaceReducerTest {
     fun `no sample without heading, speed or way`() {
         val noHeading = RaceState().apply(RaceEvent.FixReceived(fix(1_000, courseDegrees = null)))
         assertTrue(noHeading.wind.histogram.isEmpty)
-        assertNull(noHeading.lastWindSampleSecond)
+        // The position is still worth remembering for the map.
+        assertEquals(1L, noHeading.lastSampleSecond)
+        assertEquals(1, noHeading.track.points.size)
+        assertNull(noHeading.track.latest?.headingDegrees)
+        assertNull(noHeading.track.latest?.upwindWindDegrees)
 
         val noSpeed = RaceState().apply(RaceEvent.CompassUpdated(315.0), RaceEvent.FixReceived(fix(1_000, speedMps = null)))
         assertEquals(315.0, noSpeed.navigation.headingDegrees)
@@ -94,6 +101,31 @@ class RaceReducerTest {
         assertEquals(1, noPreviousFix.wind.histogram.totalSamples)
         val lostHeading = steady.apply(RaceEvent.FixReceived(fix(2_000, courseDegrees = null)))
         assertEquals(1, lostHeading.wind.histogram.totalSamples)
+    }
+
+    @Test
+    fun `the track records every fix second, with the wind where it was sampled close-hauled`() {
+        val state = RaceState().apply(
+            RaceEvent.FixReceived(fix(1_000)),
+            RaceEvent.FixReceived(fix(1_500)),
+            RaceEvent.FixReceived(fix(2_000, courseDegrees = 280.0)),
+            RaceEvent.FixReceived(fix(3_000, speedMps = 0.1)),
+            RaceEvent.FixReceived(fix(4_000, courseDegrees = 220.0)),
+        )
+        val points = state.track.points
+        assertEquals(listOf(1_000L, 2_000L, 3_000L, 4_000L), points.map { it.timestampMillis })
+        assertEquals(0.0, assertNotNull(points[0].upwindWindDegrees), 1e-9)
+        assertEquals(315.0, points[0].headingDegrees)
+        assertEquals(3.0, points[0].speedMps)
+        assertNull(points[1].upwindWindDegrees) // reaching
+        assertNull(points[2].upwindWindDegrees) // drifting
+        assertNull(points[3].upwindWindDegrees) // running
+        assertEquals(origin, points[3].point)
+
+        val cleared = state.apply(RaceEvent.ClearTrack)
+        assertTrue(cleared.track.isEmpty)
+        assertEquals(Track.DEFAULT_CAPACITY, cleared.track.capacity)
+        assertEquals(state.wind.histogram, cleared.wind.histogram)
     }
 
     @Test
@@ -156,6 +188,68 @@ class RaceReducerTest {
 
         val restored = RaceState().apply(RaceEvent.SetStartLine(StartLine(north(5.0), north(10.0))))
         assertEquals(StartLine(north(5.0), north(10.0)), restored.startLine)
+    }
+
+    @Test
+    fun `the windward mark can be set here, from the line, directly, and cleared`() {
+        assertNull(RaceState().apply(RaceEvent.MarkWindwardMark).windwardMark)
+        assertNull(RaceState().apply(RaceEvent.SetWindwardMarkFromLine(0, 500.0)).windwardMark)
+
+        val here = RaceState().apply(RaceEvent.FixReceived(fix(1_000, point = origin)))
+        assertEquals(origin, here.apply(RaceEvent.MarkWindwardMark).windwardMark)
+        // Without a line the bearing and distance count from the boat.
+        val fromBoat = assertNotNull(here.apply(RaceEvent.SetWindwardMarkFromLine(0, 500.0)).windwardMark)
+        assertEquals(0.0, Geo.distanceMeters(north(500.0), fromBoat), 0.01)
+        // With a line they count from its middle.
+        val fromLine = assertNotNull(
+            here.apply(RaceEvent.SetStartLine(StartLine(origin, east(100.0))), RaceEvent.SetWindwardMarkFromLine(0, 500.0)).windwardMark,
+        )
+        assertEquals(0.0, Geo.distanceMeters(north(500.0, from = east(50.0)), fromLine), 0.01)
+
+        assertEquals(north(5.0), here.apply(RaceEvent.SetWindwardMark(north(5.0))).windwardMark)
+        assertNull(fromLine.let { here.apply(RaceEvent.SetWindwardMark(it), RaceEvent.SetWindwardMark(null)).windwardMark })
+    }
+
+    @Test
+    fun `clearing the session keeps the settings, the set wind and the sensors`() {
+        val settings = RaceSettings(windHistoryCapacity = 7, compassOffsetDegrees = 180)
+        val state = RaceState(settings = settings).apply(
+            RaceEvent.SetWindDirection(90),
+            RaceEvent.CompassUpdated(10.0),
+            RaceEvent.FixReceived(fix(1_000, courseDegrees = 45.0)),
+            RaceEvent.MarkPinEnd,
+            RaceEvent.MarkWindwardMark,
+            RaceEvent.StartCountdown(5, nowMillis = 1_000),
+        )
+        assertEquals(1, state.wind.histogram.totalSamples)
+        val cleared = state.apply(RaceEvent.ClearSession)
+        assertEquals(StartLine(), cleared.startLine)
+        assertNull(cleared.windwardMark)
+        assertEquals(TimerState.Idle, cleared.timer)
+        assertTrue(cleared.track.isEmpty)
+        assertEquals(Track.DEFAULT_CAPACITY, cleared.track.capacity)
+        assertEquals(WindHistogram(), cleared.wind.histogram)
+        assertEquals(WindHistory(capacity = 7), cleared.wind.history)
+        assertEquals(SpeedStats(), cleared.speedStats)
+        assertNull(cleared.lastCuedSecond)
+        assertNull(cleared.lastSampleSecond)
+        assertEquals(settings, cleared.settings)
+        assertEquals(90, cleared.wind.settings.directionDegrees)
+        assertEquals(state.navigation, cleared.navigation)
+    }
+
+    @Test
+    fun `sampling judges the tack against the measured mean, not the roughly set wind`() {
+        // Thirty close-hauled samples on starboard at 340: the wind is really 25, not the 0 that was set.
+        var state = RaceState()
+        for (t in 1L..30L) state = state.apply(RaceEvent.FixReceived(fix(t * 1_000, courseDegrees = 340.0)))
+        assertEquals(25.0, state.wind.reference.directionDegrees, 1e-9)
+        assertTrue(state.wind.reference.isMeasured)
+        // Heading 80 is a reach against the set wind (80 off) but close-hauled on port against the real one (55 off).
+        val port = state.apply(RaceEvent.FixReceived(fix(60_000, courseDegrees = 80.0)))
+        assertEquals(31, port.wind.histogram.totalSamples)
+        assertEquals(1, port.wind.histogram.count(35))
+        assertEquals(35.0, assertNotNull(port.track.latest?.upwindWindDegrees), 1e-9)
     }
 
     // --- countdown ---------------------------------------------------------------------------------

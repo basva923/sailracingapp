@@ -1,5 +1,6 @@
 package com.sailracing.app.data
 
+import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.race.RaceSettings
 import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.timer.TimerState
@@ -22,9 +23,10 @@ data class AppSettings(
     val simulation: SimulationSettings = SimulationSettings(),
 )
 
-/** Race data that survives an app restart: the line, the wind and a running countdown. */
+/** Race data that survives an app restart: the line, the windward mark, the wind and a running countdown. */
 data class PersistedRace(
     val startLine: StartLine = StartLine(),
+    val windwardMark: GeoPoint? = null,
     val wind: WindSettings = WindSettings(),
     val timer: TimerState = TimerState.Idle,
 )

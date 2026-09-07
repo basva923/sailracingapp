@@ -30,4 +30,12 @@ class StartLineTest {
         assertTrue(line.isComplete)
         assertEquals(100.0, assertNotNull(line.lengthMeters()), 0.01)
     }
+
+    @Test
+    fun `the middle is what is known of the line`() {
+        assertNull(StartLine().middle())
+        assertEquals(pin, StartLine(pinEnd = pin).middle())
+        assertEquals(boat, StartLine(boatEnd = boat).middle())
+        assertEquals(0.0, Geo.distanceMeters(Geo.destination(pin, 90.0, 50.0), assertNotNull(StartLine(pin, boat).middle())), 0.01)
+    }
 }

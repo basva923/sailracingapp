@@ -1,5 +1,6 @@
 package com.sailracing.domain.race
 
+import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.model.PositionFix
 import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.timer.Cue
@@ -21,6 +22,16 @@ public sealed interface RaceEvent {
     public data object ClearBoatEnd : RaceEvent
     public data class SetStartLine(val line: StartLine) : RaceEvent
 
+    // Windward mark
+    /** Sets the windward mark at the boat's position. */
+    public data object MarkWindwardMark : RaceEvent
+
+    /** Sets the windward mark at a bearing and distance from the middle of the line (or from the boat without a line). */
+    public data class SetWindwardMarkFromLine(val bearingDegrees: Int, val distanceMeters: Double) : RaceEvent
+
+    /** Sets or, with null, clears the windward mark. */
+    public data class SetWindwardMark(val point: GeoPoint?) : RaceEvent
+
     // Countdown
     public data class StartCountdown(val minutes: Int, val nowMillis: Long) : RaceEvent
     public data class SyncCountdown(val nowMillis: Long) : RaceEvent
@@ -36,6 +47,10 @@ public sealed interface RaceEvent {
     public data class SetWindSettings(val settings: WindSettings) : RaceEvent
     public data object ResetWindStatistics : RaceEvent
     public data object ResetSpeedStatistics : RaceEvent
+    public data object ClearTrack : RaceEvent
+
+    /** Forgets everything of the session (line, mark, timer, track, statistics); keeps the settings and the set wind. */
+    public data object ClearSession : RaceEvent
 
     // Configuration
     public data class UpdateSettings(val settings: RaceSettings) : RaceEvent

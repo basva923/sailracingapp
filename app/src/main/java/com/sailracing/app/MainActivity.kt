@@ -45,7 +45,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Gates the app behind the location permission and keeps the session and screen alive while granted. */
+    /**
+     * Gates the app behind the location permission, runs the foreground service while a session runs and
+     * keeps the screen on meanwhile. The session itself is started by the sailor on the Session screen.
+     */
     @Composable
     private fun AppRoot(viewModel: RaceViewModel, versionName: String) {
         val context = LocalContext.current
@@ -77,9 +80,8 @@ class MainActivity : ComponentActivity() {
         val settings by viewModel.settings.collectAsStateWithLifecycle()
         val running by viewModel.isRunning.collectAsStateWithLifecycle()
 
-        LaunchedEffect(Unit) {
-            viewModel.ensureRunning()
-            RaceService.start(context)
+        LaunchedEffect(running) {
+            if (running) RaceService.start(context)
         }
         DisposableEffect(settings.keepScreenOn, running) {
             if (settings.keepScreenOn && running) {

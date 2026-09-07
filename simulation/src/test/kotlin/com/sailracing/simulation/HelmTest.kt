@@ -62,6 +62,33 @@ class HelmTest {
     }
 
     @Test
+    fun `a corridor beat tacks at the edge of the corridor`() {
+        val mark = course.windwardMark
+        val helm = BeatTo(mark, Tack.STARBOARD, corridorHalfWidthMeters = 100.0)
+        val below = Geo.destination(mark, 180.0, 400.0)
+        // Inside the corridor: carry on close-hauled on the current tack.
+        assertEquals(315.0, helm.steer(context(Geo.destination(below, 270.0, 50.0), heading = 315.0)))
+        assertEquals(Tack.STARBOARD, helm.tack)
+        // At the left edge on starboard: tack onto port.
+        assertEquals(45.0, helm.steer(context(Geo.destination(below, 270.0, 110.0), heading = 315.0)))
+        assertEquals(Tack.PORT, helm.tack)
+        // Heading back across on port is fine at the left edge, but not at the right edge.
+        assertEquals(45.0, helm.steer(context(Geo.destination(below, 270.0, 110.0), heading = 45.0)))
+        assertEquals(315.0, helm.steer(context(Geo.destination(below, 90.0, 120.0), heading = 45.0)))
+        assertEquals(Tack.STARBOARD, helm.tack)
+        // Laylines still win: past the port layline the helm fetches the mark.
+        assertHeading(50.0, helm.steer(context(Geo.destination(mark, 230.0, 200.0), heading = 315.0)))
+        // The scripted race stays in its corridor and still rounds the mark.
+        val result = StandardRaceScenario.build(StandardRaceScenario.Config(beatCorridorHalfWidthMeters = 60.0))
+        val beat = result.truth.filter { it.timeMillis in result.milestone(StandardRaceScenario.START)..result.milestone(StandardRaceScenario.BEAT) }
+        assertTrue(beat.all { kotlin.math.abs(result.course.acrossMeters(it.boat.position)) < 90.0 })
+        assertTrue(beat.any { result.course.acrossMeters(it.boat.position) > 40.0 })
+        assertTrue(beat.any { result.course.acrossMeters(it.boat.position) < -40.0 })
+        val layline = StandardRaceScenario.build(StandardRaceScenario.Config(beatCorridorHalfWidthMeters = null))
+        assertTrue(layline.truth.any { kotlin.math.abs(layline.course.acrossMeters(it.boat.position)) > 150.0 })
+    }
+
+    @Test
     fun `run sails the downwind angle and points at the mark once it can`() {
         val mark = course.leewardMark
         val helm = RunTo(mark, Tack.STARBOARD)

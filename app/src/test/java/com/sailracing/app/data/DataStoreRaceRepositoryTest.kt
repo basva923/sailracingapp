@@ -83,18 +83,22 @@ class DataStoreRaceRepositoryTest {
         val repository = repository(scope)
         val line = StartLine(GeoPoint(51.14, 5.83), GeoPoint(51.141, 5.831))
         repository.saveStartLine(line)
+        repository.saveWindwardMark(GeoPoint(51.145, 5.83))
         repository.saveWind(WindSettings(200, 50, 150))
         repository.saveTimer(TimerState.Running(123_456))
         val stored = repository.persistedRace.first()
         assertEquals(line, stored.startLine)
+        assertEquals(GeoPoint(51.145, 5.83), stored.windwardMark)
         assertEquals(WindSettings(200, 50, 150), stored.wind)
         assertEquals(TimerState.Running(123_456), stored.timer)
 
         repository.saveStartLine(StartLine(pinEnd = GeoPoint(1.0, 2.0)))
+        repository.saveWindwardMark(null)
         repository.saveTimer(TimerState.Idle)
         val cleared = repository.persistedRace.first()
         assertEquals(StartLine(pinEnd = GeoPoint(1.0, 2.0)), cleared.startLine)
         assertNull(cleared.startLine.boatEnd)
+        assertNull(cleared.windwardMark)
         assertEquals(TimerState.Idle, cleared.timer)
         scope.cancel()
     }
@@ -110,11 +114,14 @@ class DataStoreRaceRepositoryTest {
             prefs[doublePreferencesKey("line.pin.lon")] = 5.0
             prefs[doublePreferencesKey("settings.approach.speed")] = -1.0
             prefs[doublePreferencesKey("settings.simulation.speed")] = 0.0
+            prefs[doublePreferencesKey("mark.windward.lat")] = 95.0
+            prefs[doublePreferencesKey("mark.windward.lon")] = 5.0
         }
         val repository = DataStoreRaceRepository(store)
         val race = repository.persistedRace.first()
         assertEquals(WindSettings(), race.wind)
         assertNull(race.startLine.pinEnd)
+        assertNull(race.windwardMark)
         val settings = repository.settings.first()
         assertIs<ApproachSpeed.AverageUpwindVmg>(settings.race.approachSpeed)
         assertEquals(1.5, (settings.race.approachSpeed as ApproachSpeed.AverageUpwindVmg).fallbackMps)

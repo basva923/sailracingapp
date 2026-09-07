@@ -6,6 +6,7 @@ import com.sailracing.app.data.PersistedRace
 import com.sailracing.app.data.RaceRepository
 import com.sailracing.app.sensors.SensorSource
 import com.sailracing.app.time.Clock
+import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.race.RaceEvent
 import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.timer.Cue
@@ -25,6 +26,7 @@ class FakeRepository(
     override val settings = MutableStateFlow(initialSettings)
     override val persistedRace = MutableStateFlow(initialRace)
     val savedLines = mutableListOf<StartLine>()
+    val savedMarks = mutableListOf<GeoPoint?>()
     val savedWinds = mutableListOf<WindSettings>()
     val savedTimers = mutableListOf<TimerState>()
 
@@ -33,6 +35,11 @@ class FakeRepository(
     override suspend fun saveStartLine(line: StartLine) {
         savedLines += line
         persistedRace.update { it.copy(startLine = line) }
+    }
+
+    override suspend fun saveWindwardMark(mark: GeoPoint?) {
+        savedMarks += mark
+        persistedRace.update { it.copy(windwardMark = mark) }
     }
 
     override suspend fun saveWind(wind: WindSettings) {

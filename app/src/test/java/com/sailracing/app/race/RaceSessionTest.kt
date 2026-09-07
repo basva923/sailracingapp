@@ -58,18 +58,22 @@ class RaceSessionTest {
     fun restoresPersistedRaceAndSettings() = runTest {
         val clock = SchedulerClock(this)
         val line = StartLine(GeoPoint(51.14, 5.83), GeoPoint(51.141, 5.83))
+        val mark = GeoPoint(51.145, 5.83)
         val wind = WindSettings(200, 40, 150)
         val running = TimerState.Running(clock.nowMillis() + 60_000)
         val repository = FakeRepository(
             initialSettings = AppSettings(race = RaceSettings(compassOffsetDegrees = 180), keepScreenOn = false),
-            initialRace = PersistedRace(line, wind, running),
+            initialRace = PersistedRace(line, mark, wind, running),
         )
         val session = session(repository, clock = clock)
+        assertEquals(null, session.startedAtMillis.value)
         session.start()
         runCurrent()
 
         assertTrue(session.isRunning.value)
+        assertEquals(clock.nowMillis(), session.startedAtMillis.value)
         assertEquals(line, session.state.value.startLine)
+        assertEquals(mark, session.state.value.windwardMark)
         assertEquals(wind, session.state.value.wind.settings)
         assertEquals(running, session.state.value.timer)
         assertEquals(180, session.state.value.settings.compassOffsetDegrees)
@@ -77,6 +81,7 @@ class RaceSessionTest {
         assertEquals(RacePhase.COUNTDOWN, session.snapshot.value.phase)
         // Restoring must not write anything back.
         assertTrue(repository.savedLines.isEmpty() && repository.savedWinds.isEmpty() && repository.savedTimers.isEmpty())
+        assertTrue(repository.savedMarks.isEmpty())
         // Starting twice is harmless.
         session.start()
         session.stop()
@@ -118,10 +123,15 @@ class RaceSessionTest {
         sensors.events.tryEmit(RaceEvent.FixReceived(PositionFix(GeoPoint(51.14, 5.83), session.nowMillis(), 3.0, 315.0, 3.0)))
         runCurrent()
         session.dispatch(RaceEvent.MarkPinEnd)
+        session.dispatch(RaceEvent.MarkWindwardMark)
         session.dispatch(RaceEvent.SetWindDirection(90))
         runCurrent()
         assertEquals(GeoPoint(51.14, 5.83), repository.savedLines.last().pinEnd)
+        assertEquals(GeoPoint(51.14, 5.83), repository.savedMarks.last())
         assertEquals(90, repository.savedWinds.last().directionDegrees)
+        session.dispatch(RaceEvent.SetWindwardMark(null))
+        runCurrent()
+        assertEquals(listOf(GeoPoint(51.14, 5.83), null), repository.savedMarks)
 
         session.syncCountdown()
         session.dispatch(RaceEvent.StopTimer)

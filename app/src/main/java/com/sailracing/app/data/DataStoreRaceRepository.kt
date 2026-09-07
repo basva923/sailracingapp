@@ -37,6 +37,10 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
         }
     }
 
+    override suspend fun saveWindwardMark(mark: GeoPoint?) {
+        dataStore.edit { prefs -> prefs.writePoint(Keys.MARK_LAT, Keys.MARK_LON, mark) }
+    }
+
     override suspend fun saveWind(wind: WindSettings) {
         dataStore.edit { prefs ->
             prefs[Keys.WIND_DIRECTION] = wind.directionDegrees
@@ -138,6 +142,7 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
         }.getOrDefault(defaults)
         return PersistedRace(
             startLine = StartLine(readPoint(Keys.PIN_LAT, Keys.PIN_LON), readPoint(Keys.BOAT_LAT, Keys.BOAT_LON)),
+            windwardMark = readPoint(Keys.MARK_LAT, Keys.MARK_LON),
             wind = wind,
             timer = this[Keys.TIMER_START_AT]?.let { TimerState.Running(it) } ?: TimerState.Idle,
         )
@@ -154,6 +159,8 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
         val PIN_LON = doublePreferencesKey("line.pin.lon")
         val BOAT_LAT = doublePreferencesKey("line.boat.lat")
         val BOAT_LON = doublePreferencesKey("line.boat.lon")
+        val MARK_LAT = doublePreferencesKey("mark.windward.lat")
+        val MARK_LON = doublePreferencesKey("mark.windward.lon")
         val WIND_DIRECTION = intPreferencesKey("wind.direction")
         val TACK_ANGLE = intPreferencesKey("wind.tackAngle")
         val DOWNWIND_ANGLE = intPreferencesKey("wind.downwindAngle")

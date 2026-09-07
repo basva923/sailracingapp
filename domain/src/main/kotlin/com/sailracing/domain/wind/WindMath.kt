@@ -31,10 +31,15 @@ public object WindMath {
 
     /**
      * The wind direction the boat is actually sailing to, assuming it holds the optimal angle for its
-     * current tack and point of sail (both judged against the configured wind in [settings]).
+     * current tack and point of sail (both judged against [referenceDegrees], the measured mean wind when
+     * there is one and the set wind otherwise).
      */
-    public fun estimatedWindDirection(headingDegrees: Double, settings: WindSettings): Double {
-        val state = sailingState(headingDegrees, settings.directionDegrees.toDouble())
+    public fun estimatedWindDirection(
+        headingDegrees: Double,
+        settings: WindSettings,
+        referenceDegrees: Double = settings.directionDegrees.toDouble(),
+    ): Double {
+        val state = sailingState(headingDegrees, referenceDegrees)
         val angle = when (state.pointOfSail) {
             PointOfSail.UPWIND -> settings.tackAngleDegrees
             PointOfSail.DOWNWIND -> settings.downwindAngleDegrees
@@ -46,12 +51,13 @@ public object WindMath {
         return Angles.normalize(estimate)
     }
 
-    /** Signed wind shift from the configured to the estimated direction: positive = veer (clockwise). */
-    public fun shiftDegrees(configuredDegrees: Double, estimatedDegrees: Double): Double =
-        Angles.signedDifference(configuredDegrees, estimatedDegrees)
+    /** Signed wind shift from the reference to the estimated direction: positive = veer (clockwise). */
+    public fun shiftDegrees(referenceDegrees: Double, estimatedDegrees: Double): Double =
+        Angles.signedDifference(referenceDegrees, estimatedDegrees)
 
-    public fun targetHeadings(settings: WindSettings): TargetHeadings {
-        val wind = settings.directionDegrees.toDouble()
+    /** The optimal headings around the wind [referenceDegrees] (the set wind by default). */
+    public fun targetHeadings(settings: WindSettings, referenceDegrees: Double = settings.directionDegrees.toDouble()): TargetHeadings {
+        val wind = referenceDegrees
         return TargetHeadings(
             starboardUpwind = Angles.normalize(wind - settings.tackAngleDegrees),
             portUpwind = Angles.normalize(wind + settings.tackAngleDegrees),
@@ -61,8 +67,12 @@ public object WindMath {
     }
 
     /** The optimal heading for the boat's current tack and point of sail. */
-    public fun targetHeading(settings: WindSettings, state: SailingState): Double {
-        val targets = targetHeadings(settings)
+    public fun targetHeading(
+        settings: WindSettings,
+        state: SailingState,
+        referenceDegrees: Double = settings.directionDegrees.toDouble(),
+    ): Double {
+        val targets = targetHeadings(settings, referenceDegrees)
         return when (state.pointOfSail) {
             PointOfSail.UPWIND -> if (state.tack == Tack.STARBOARD) targets.starboardUpwind else targets.portUpwind
             PointOfSail.DOWNWIND -> if (state.tack == Tack.STARBOARD) targets.starboardDownwind else targets.portDownwind

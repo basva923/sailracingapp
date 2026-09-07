@@ -21,14 +21,16 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Bar chart of how often each wind direction (relative to the configured wind, bin 0 in the middle)
- * was observed while sailing upwind. The configured wind is a blue line, the current estimate amber.
+ * Bar chart of how often each wind direction (relative to the reference wind, bin 0 in the middle) was
+ * observed while sailing upwind. The reference (the histogram's weighted centre once measured) is the
+ * white line in the middle, the set wind a blue line where it sits relative to it, the current estimate amber.
  */
 @Composable
 fun HistogramChart(
     bins: List<HistogramBin>,
     estimatedOffsetDegrees: Double?,
     modifier: Modifier = Modifier,
+    setOffsetDegrees: Double? = null,
     emptyText: String = "Sail upwind to build the wind histogram",
 ) {
     val maxCount = bins.maxOfOrNull { it.count } ?: 0
@@ -47,7 +49,8 @@ fun HistogramChart(
                     )
                 }
             }
-            drawMarker(chart, bins, 0.0, RaceColors.Wind)
+            drawMarker(chart, bins, 0.0, RaceColors.White)
+            if (setOffsetDegrees != null) drawMarker(chart, bins, setOffsetDegrees, RaceColors.Wind)
             if (estimatedOffsetDegrees != null) drawMarker(chart, bins, estimatedOffsetDegrees, RaceColors.Estimated)
         }
         if (maxCount == 0) {
@@ -61,7 +64,7 @@ fun HistogramChart(
     }
 }
 
-/** Line chart of the wind shift (estimated minus configured) over the last samples; left is oldest. */
+/** Line chart of the wind shift (estimated minus reference) over the last samples; left is oldest. */
 @Composable
 fun HistoryChart(
     shiftsDegrees: List<Double>,
@@ -126,7 +129,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMarker(chart: C
 }
 
 /** Shift values from history samples, for the chart. */
-fun shiftsFrom(samples: List<Double>, configuredDegrees: Double): List<Double> =
-    samples.map { com.sailracing.domain.geo.Angles.signedDifference(configuredDegrees, it) }.also { list ->
+fun shiftsFrom(samples: List<Double>, referenceDegrees: Double): List<Double> =
+    samples.map { com.sailracing.domain.geo.Angles.signedDifference(referenceDegrees, it) }.also { list ->
         check(list.all { abs(it) <= 180.0 })
     }

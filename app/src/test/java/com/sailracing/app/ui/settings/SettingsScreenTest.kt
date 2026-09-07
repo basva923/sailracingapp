@@ -31,13 +31,7 @@ class SettingsScreenTest {
     val compose = createComposeRule()
 
     private var settings by mutableStateOf(AppSettings())
-    private val log = mutableListOf<String>()
-    private val actions = SettingsActions(
-        update = { transform -> settings = transform(settings) },
-        resetWindStatistics = { log += "resetWind" },
-        resetSpeedStatistics = { log += "resetSpeed" },
-        endSession = { log += "end" },
-    )
+    private val actions = SettingsActions(update = { transform -> settings = transform(settings) })
 
     private fun show() {
         compose.setContent { SailRacingTheme { SettingsScreen(settings = settings, actions = actions, versionName = "1.0") } }
@@ -117,16 +111,10 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun sessionActionsAskForConfirmation() {
+    fun aboutTextAndCuePolicyDescription() {
         show()
-        compose.onNodeWithTag("resetStatistics").performScrollTo().performClick()
-        compose.onNodeWithText("Reset all statistics?").assertIsDisplayed()
-        compose.onNodeWithTag("confirm").performClick()
-        compose.onNodeWithTag("endSession").performScrollTo().performClick()
-        compose.onNodeWithTag("cancel").performClick()
-        compose.onNodeWithTag("endSession").performClick()
-        compose.onNodeWithTag("confirm").performClick()
-        assertEquals(listOf("resetWind", "resetSpeed", "end"), log)
+        compose.onNodeWithTag("about").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Sessions are started, ended and cleared on the Session screen. The racing area on the map follows the track. Sail Racing 1.0").assertIsDisplayed()
         assertTrue(CuePolicy().describe().startsWith("on"))
         assertEquals("off", CuePolicy(enabled = false).describe())
     }

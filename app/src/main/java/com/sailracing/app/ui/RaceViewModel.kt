@@ -7,13 +7,16 @@ import com.sailracing.app.data.AppSettings
 import com.sailracing.app.data.RaceRepository
 import com.sailracing.app.di.AppGraph
 import com.sailracing.app.race.RaceSession
-import com.sailracing.app.ui.race.RaceUiState
+import com.sailracing.app.ui.map.MapUiState
+import com.sailracing.app.ui.session.SessionUiState
 import com.sailracing.app.ui.start.StartUiState
 import com.sailracing.app.ui.wind.WindUiState
 import com.sailracing.domain.race.RaceEvent
 import com.sailracing.domain.race.RaceSnapshot
+import com.sailracing.domain.timer.RacePhase
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -29,18 +32,28 @@ class RaceViewModel(private val session: RaceSession, private val repository: Ra
     // (a StateFlow drops equal values) even though snapshots arrive several times a second.
     val startUiState: StateFlow<StartUiState> = derived(StartUiState::from)
     val windUiState: StateFlow<WindUiState> = derived(WindUiState::from)
-    val raceUiState: StateFlow<RaceUiState> = derived(RaceUiState::from)
+    val mapUiState: StateFlow<MapUiState> = derived(MapUiState::from)
+    val phase: StateFlow<RacePhase> = derived { it.phase }
+    val sessionUiState: StateFlow<SessionUiState> = combine(session.snapshot, session.isRunning, session.startedAtMillis, session.settings) {
+        snapshot, running, startedAt, settings -> SessionUiState.from(snapshot, running, startedAt, settings.simulation.enabled)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
+        SessionUiState.from(session.snapshot.value, session.isRunning.value, session.startedAtMillis.value, session.settings.value.simulation.enabled),
+    )
 
     private fun <T> derived(transform: (RaceSnapshot) -> T): StateFlow<T> =
         session.snapshot.map(transform).stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), transform(session.snapshot.value))
 
     fun nowMillis(): Long = session.nowMillis()
 
-    fun ensureRunning() {
+    // Session: started and ended by the sailor; clearing forgets everything measured and marked.
+    fun startSession() {
         viewModelScope.launch { session.start() }
     }
 
     fun endSession() = session.stop()
+    fun clearSession() = session.dispatch(RaceEvent.ClearSession)
 
     // Start line
     fun markPinEnd() = session.dispatch(RaceEvent.MarkPinEnd)
@@ -48,8 +61,13 @@ class RaceViewModel(private val session: RaceSession, private val repository: Ra
     fun clearPinEnd() = session.dispatch(RaceEvent.ClearPinEnd)
     fun clearBoatEnd() = session.dispatch(RaceEvent.ClearBoatEnd)
 
-    // Countdown
-    fun startCountdown(minutes: Int) = session.startCountdown(minutes)
+    // Countdown. A countdown needs the ticker for its beeps, so it starts the session if the sailor forgot to.
+    fun startCountdown(minutes: Int) {
+        viewModelScope.launch {
+            session.start()
+            session.startCountdown(minutes)
+        }
+    }
     fun syncCountdown() = session.syncCountdown()
     fun stopTimer() = session.dispatch(RaceEvent.StopTimer)
 
@@ -59,8 +77,17 @@ class RaceViewModel(private val session: RaceSession, private val repository: Ra
     fun setDownwindAngle(degrees: Int) = session.dispatch(RaceEvent.SetDownwindAngle(degrees))
     fun setWindFromPortTack() = session.dispatch(RaceEvent.SetWindFromPortTack)
     fun setWindFromStarboardTack() = session.dispatch(RaceEvent.SetWindFromStarboardTack)
-    fun resetWindStatistics() = session.dispatch(RaceEvent.ResetWindStatistics)
-    fun resetSpeedStatistics() = session.dispatch(RaceEvent.ResetSpeedStatistics)
+    fun resetStatistics() {
+        session.dispatch(RaceEvent.ResetWindStatistics)
+        session.dispatch(RaceEvent.ResetSpeedStatistics)
+    }
+
+    // Map
+    fun clearTrack() = session.dispatch(RaceEvent.ClearTrack)
+    fun markWindwardMark() = session.dispatch(RaceEvent.MarkWindwardMark)
+    fun setWindwardMarkFromLine(bearingDegrees: Int, distanceMeters: Double) =
+        session.dispatch(RaceEvent.SetWindwardMarkFromLine(bearingDegrees, distanceMeters))
+    fun clearWindwardMark() = session.dispatch(RaceEvent.SetWindwardMark(null))
 
     // Settings
     fun updateSettings(transform: (AppSettings) -> AppSettings) {

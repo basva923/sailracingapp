@@ -44,8 +44,16 @@ public class CloseHauled(private val tack: Tack) : Helm() {
 /**
  * Beat upwind to a mark: sail close-hauled on the current tack until the mark can be laid,
  * then point straight at it (which is how the boat changes tack on the layline).
+ *
+ * @property corridorHalfWidthMeters when set, the helm stays within this distance of the course axis and
+ *   tacks at the edge of the corridor, zigzagging up the middle like a boat that plays the shifts,
+ *   instead of sailing out to a layline in one board.
  */
-public class BeatTo(private val mark: GeoPoint, initialTack: Tack) : Helm() {
+public class BeatTo(
+    private val mark: GeoPoint,
+    initialTack: Tack,
+    private val corridorHalfWidthMeters: Double? = null,
+) : Helm() {
     public var tack: Tack = initialTack
         private set
 
@@ -59,6 +67,13 @@ public class BeatTo(private val mark: GeoPoint, initialTack: Tack) : Helm() {
             return bearing
         }
         tack = WindMath.sailingState(context.boat.headingDegrees, wind).tack
+        val limit = corridorHalfWidthMeters
+        if (limit != null) {
+            // Starboard tack carries the boat to the left of the axis, port to the right.
+            val across = context.course.acrossMeters(context.boat.position)
+            val leavingCorridor = if (tack == Tack.STARBOARD) across <= -limit else across >= limit
+            if (leavingCorridor) tack = tack.opposite()
+        }
         return closeHauledHeading(wind, context.polar.upwindAngleDegrees, tack)
     }
 }

@@ -23,6 +23,15 @@ class WindModelTest {
     }
 
     @Test
+    fun `shear veers the wind to the right of the axis`() {
+        val wind = WindModel(meanDirectionDegrees = 0.0, shearDegreesPerMeter = 0.02)
+        assertEquals(0.0, wind.directionAt(5.0))
+        assertEquals(2.0, wind.directionAt(5.0, acrossMeters = 100.0), 1e-9)
+        assertEquals(358.0, wind.directionAt(5.0, acrossMeters = -100.0), 1e-9)
+        assertEquals(0.0, WindModel(0.0).directionAt(5.0, acrossMeters = 100.0))
+    }
+
+    @Test
     fun `period must be positive`() {
         assertFailsWith<IllegalArgumentException> { WindModel(0.0, periodSeconds = 0.0) }
     }

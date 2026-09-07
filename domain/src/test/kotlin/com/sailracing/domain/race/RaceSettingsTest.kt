@@ -24,5 +24,6 @@ class RaceSettingsTest {
         assertEquals(RaceSettings.DEFAULT_DOWNWIND_MIN_TWA, settings.downwindMinTwaDegrees)
         assertEquals(120, settings.downwindMinTwaDegrees)
         assertEquals(RaceSettings.DEFAULT_MAX_SAMPLING_TURN_RATE, settings.maxSamplingTurnRateDegreesPerSecond)
+        assertEquals(3600, settings.windHistoryCapacity)
     }
 }

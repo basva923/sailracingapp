@@ -19,8 +19,9 @@ import kotlin.math.sin
 
 /**
  * Heading-up compass rose: the boat always points up, the rose turns underneath it.
- * Shows the configured wind (blue arrow from the edge), the estimated wind (amber), the two close-hauled
- * target headings (green/red ticks for starboard/port) and the downwind targets (dimmer).
+ * Shows the configured wind (blue arrow from the edge), the mean wind of the histogram (white), the
+ * estimated wind (amber), the two close-hauled target headings (green/red ticks for starboard/port)
+ * and the downwind targets (dimmer).
  */
 @Composable
 fun CompassRose(
@@ -29,6 +30,7 @@ fun CompassRose(
     estimatedWindDegrees: Double?,
     targets: TargetHeadings,
     modifier: Modifier = Modifier,
+    meanWindDegrees: Double? = null,
 ) {
     Canvas(modifier = modifier.aspectRatio(1f).testTag("compassRose")) {
         val heading = headingDegrees ?: 0.0
@@ -54,6 +56,7 @@ fun CompassRose(
             drawTick(center, radius, targets.portDownwind, RaceColors.Port.copy(alpha = 0.5f), 0.2f, 5f)
             // Wind arrows pointing inwards from the direction the wind comes from
             drawWindArrow(center, radius, windDegrees, RaceColors.Wind, 0.42f)
+            if (meanWindDegrees != null) drawWindArrow(center, radius, meanWindDegrees, RaceColors.White, 0.36f)
             if (estimatedWindDegrees != null) drawWindArrow(center, radius, estimatedWindDegrees, RaceColors.Estimated, 0.3f)
         }
 

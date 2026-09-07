@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.merge
  * The plain [LocationManager] is used rather than Play Services so the app works on every device, including
  * de-Googled ones, and has no extra dependency. GPS at 1 Hz is the dominant battery cost and is unavoidable
  * for an accurate time to the line; the compass is sampled slowly and only matters while stationary.
+ * The compass heading is read for a phone standing upright on the mast, see [DeviceHeading].
  */
 class AndroidSensorSource(
     private val context: Context,
@@ -59,13 +60,10 @@ class AndroidSensorSource(
             return@callbackFlow
         }
         val rotation = FloatArray(9)
-        val orientation = FloatArray(3)
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
                 SensorManager.getRotationMatrixFromVector(rotation, event.values)
-                SensorManager.getOrientation(rotation, orientation)
-                val azimuth = Math.toDegrees(orientation[0].toDouble())
-                trySend(RaceEvent.CompassUpdated(azimuth))
+                trySend(RaceEvent.CompassUpdated(DeviceHeading.fromRotationMatrix(rotation)))
             }
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

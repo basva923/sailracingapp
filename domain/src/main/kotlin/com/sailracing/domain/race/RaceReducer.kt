@@ -1,11 +1,15 @@
 package com.sailracing.domain.race
 
+import com.sailracing.domain.course.Track
+import com.sailracing.domain.course.TrackPoint
 import com.sailracing.domain.geo.Angles
+import com.sailracing.domain.geo.Geo
 import com.sailracing.domain.model.PositionFix
 import com.sailracing.domain.stats.SpeedStats
 import com.sailracing.domain.timer.CountdownTimer
 import com.sailracing.domain.timer.CueSchedule
 import com.sailracing.domain.timer.TimerState
+import com.sailracing.domain.wind.WindHistory
 import com.sailracing.domain.wind.WindMath
 import com.sailracing.domain.wind.WindSample
 import com.sailracing.domain.wind.WindSettings
@@ -28,6 +32,14 @@ public object RaceReducer {
         RaceEvent.ClearPinEnd -> Transition(state.copy(startLine = state.startLine.copy(pinEnd = null)))
         RaceEvent.ClearBoatEnd -> Transition(state.copy(startLine = state.startLine.copy(boatEnd = null)))
         is RaceEvent.SetStartLine -> Transition(state.copy(startLine = event.line))
+
+        RaceEvent.MarkWindwardMark -> Transition(state.navigation.lastFix?.let { fix -> state.copy(windwardMark = fix.point) } ?: state)
+        is RaceEvent.SetWindwardMarkFromLine -> Transition(
+            (state.startLine.middle() ?: state.navigation.lastFix?.point)?.let { from ->
+                state.copy(windwardMark = Geo.destination(from, event.bearingDegrees.toDouble(), event.distanceMeters))
+            } ?: state,
+        )
+        is RaceEvent.SetWindwardMark -> Transition(state.copy(windwardMark = event.point))
 
         is RaceEvent.StartCountdown -> Transition(
             state.copy(timer = CountdownTimer.start(event.nowMillis, event.minutes), lastCuedSecond = null),
@@ -55,6 +67,15 @@ public object RaceReducer {
             state.copy(wind = WindState(settings = state.wind.settings, history = state.wind.history.copy(samples = emptyList()))),
         )
         RaceEvent.ResetSpeedStatistics -> Transition(state.copy(speedStats = SpeedStats()))
+        RaceEvent.ClearTrack -> Transition(state.copy(track = Track(capacity = state.track.capacity)))
+        RaceEvent.ClearSession -> Transition(
+            RaceState(
+                wind = WindState(settings = state.wind.settings, history = WindHistory(capacity = state.settings.windHistoryCapacity)),
+                navigation = state.navigation,
+                settings = state.settings,
+                track = Track(capacity = state.track.capacity),
+            ),
+        )
 
         is RaceEvent.UpdateSettings -> Transition(onSettings(state, event.settings))
     }
@@ -95,17 +116,26 @@ public object RaceReducer {
         return rate > state.settings.maxSamplingTurnRateDegreesPerSecond
     }
 
-    /** Adds at most one wind and speed sample per second of fix time, and only while actually sailing steadily. */
+    /**
+     * Records at most one track point per second of fix time, with a wind and speed sample when the boat is
+     * actually sailing steadily (moving, and not in the middle of a tack or gybe). Which tack and point of
+     * sail the boat is on is judged against the reference wind (the measured mean once there is one), so a
+     * roughly set wind does not keep one tack out of the statistics.
+     */
     private fun sample(state: RaceState, fix: PositionFix, turning: Boolean): RaceState {
-        val heading = state.navigation.headingDegrees ?: return state
-        val speed = fix.speedMps ?: return state
         val second = fix.timestampMillis / 1000
-        if (second == state.lastWindSampleSecond) return state
-        if (speed < state.settings.minSailingSpeedMps || turning) return state
+        if (second == state.lastSampleSecond) return state
+        val heading = state.navigation.headingDegrees
+        val speed = fix.speedMps
+        val point = TrackPoint(fix.timestampMillis, fix.point, speed, heading)
+        val recorded = state.copy(track = state.track + point, lastSampleSecond = second)
+        if (heading == null || speed == null) return recorded
+        if (speed < state.settings.minSailingSpeedMps || turning) return recorded
 
         val windSettings = state.wind.settings
-        val sailing = WindMath.sailingState(heading, windSettings.directionDegrees.toDouble())
-        val estimate = WindMath.estimatedWindDirection(heading, windSettings)
+        val reference = state.wind.reference.directionDegrees
+        val sailing = WindMath.sailingState(heading, reference)
+        val estimate = WindMath.estimatedWindDirection(heading, windSettings, reference)
         val twa = abs(sailing.trueWindAngleDegrees)
         val sailingUpwind = twa <= state.settings.upwindMaxTwaDegrees
         val sailingDownwind = twa >= state.settings.downwindMinTwaDegrees
@@ -126,10 +156,12 @@ public object RaceReducer {
             )
             else -> state.speedStats
         }
+        val tracked = if (sailingUpwind) state.track + point.copy(upwindWindDegrees = estimate) else recorded.track
         return state.copy(
             wind = state.wind.copy(histogram = histogram, history = history),
             speedStats = stats,
-            lastWindSampleSecond = second,
+            track = tracked,
+            lastSampleSecond = second,
         )
     }
 

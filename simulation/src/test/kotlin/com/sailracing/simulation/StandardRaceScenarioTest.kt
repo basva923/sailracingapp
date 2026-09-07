@@ -28,6 +28,7 @@ class StandardRaceScenarioTest {
         assertTrue(RaceEvent.MarkBoatEnd in actions)
         assertTrue(RaceEvent.SetWindFromStarboardTack in actions)
         assertTrue(RaceEvent.SetWindFromPortTack in actions)
+        assertTrue(RaceEvent.SetWindwardMarkFromLine(20, 500.0) in actions)
         assertTrue(actions.any { it is RaceEvent.StartCountdown })
         assertTrue(actions.any { it is RaceEvent.SyncCountdown })
         assertEquals(RaceEvent.StopTimer, actions.last())
@@ -74,5 +75,19 @@ class StandardRaceScenarioTest {
         assertEquals(course, result.course)
         assertTrue(result.fixes().any { assertNotNull(it.accuracyMeters) > 3.0 })
         assertEquals(200.0, result.windAt(0))
+        // By default the wind is veered on the right of the course, and the ground truth follows the boat.
+        val sheared = StandardRaceScenario.build()
+        val start = sheared.milestone(StandardRaceScenario.START)
+        val beat = sheared.truth.filter { it.timeMillis in start..sheared.milestone(StandardRaceScenario.BEAT) }
+        val rightmost = beat.maxBy { sheared.course.acrossMeters(it.boat.position) }
+        val leftmost = beat.minBy { sheared.course.acrossMeters(it.boat.position) }
+        val expectedDifference = StandardRaceScenario.DEFAULT_SHEAR_DEGREES_PER_METER *
+            (sheared.course.acrossMeters(rightmost.boat.position) - sheared.course.acrossMeters(leftmost.boat.position))
+        assertTrue(expectedDifference > 3.0, "the corridor should span enough for a visible shear: $expectedDifference")
+        assertEquals(
+            sheared.wind.directionAt(rightmost.timeMillis / 1000.0) + expectedDifference,
+            sheared.wind.directionAt(leftmost.timeMillis / 1000.0) + (rightmost.windDirectionDegrees - leftmost.windDirectionDegrees),
+            0.01,
+        )
     }
 }

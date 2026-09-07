@@ -23,6 +23,10 @@ class RaceCourseTest {
         assertEquals(200.0, Geo.initialBearingDegrees(center, course.leewardMark), 0.01)
         assertTrue(course.line.isComplete)
         assertEquals(0.0, Geo.distanceMeters(center, course.lineCenter), 0.01)
+        // Across the axis: positive to the right looking upwind (bearing 110 from the centre).
+        assertEquals(50.0, course.acrossMeters(course.boatEnd), 0.01)
+        assertEquals(-50.0, course.acrossMeters(course.pinEnd), 0.01)
+        assertEquals(0.0, course.acrossMeters(Geo.destination(center, 20.0, 250.0)), 0.01)
     }
 
     @Test
