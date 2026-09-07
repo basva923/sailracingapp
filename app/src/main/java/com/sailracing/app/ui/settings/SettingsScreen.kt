@@ -107,7 +107,7 @@ fun SettingsScreen(settings: AppSettings, actions: SettingsActions, modifier: Mo
         SectionHeader("Wind and heading")
             ValueRow(
                 title = "Count as upwind up to",
-                value = "${race.upwindMaxTwaDegrees}° off the wind",
+                value = "${race.upwindMaxTwaDegrees}°",
                 onClick = { dialog = SettingsDialog.UPWIND_MAX_TWA },
                 testTag = "upwindMaxTwa",
             )
@@ -274,6 +274,7 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheck
             .fillMaxWidth()
             .clickable { onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -292,6 +293,7 @@ private fun ValueRow(title: String, value: String, onClick: () -> Unit, testTag:
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp)
             .testTag(testTag),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))

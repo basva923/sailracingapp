@@ -15,8 +15,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.sailracing.app.ui.theme.RaceColors
+
+/**
+ * The room a pane offers its content, after padding. Content that would otherwise size itself from the
+ * width alone (big auto-sizing numbers, the compass rose) uses [height] to stay inside the screen.
+ * In portrait the two panes stack in one scroll and therefore share [height]; in landscape each pane
+ * gets it in full.
+ */
+data class PaneSize(val width: Dp, val height: Dp)
+
+private val PanePadding = 12.dp
 
 /**
  * Two stacked panes in portrait, side by side in landscape (phone mounted sideways on the boat).
@@ -25,31 +36,32 @@ import com.sailracing.app.ui.theme.RaceColors
 @Composable
 fun AdaptivePanes(
     modifier: Modifier = Modifier,
-    first: @Composable ColumnScope.() -> Unit,
-    second: @Composable ColumnScope.() -> Unit,
+    first: @Composable ColumnScope.(PaneSize) -> Unit,
+    second: @Composable ColumnScope.(PaneSize) -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val landscape = maxWidth > maxHeight
+        val height = maxHeight - PanePadding * 2
         if (landscape) {
+            val pane = PaneSize(width = maxWidth / 2 - PanePadding * 2, height = height)
             Row(modifier = Modifier.fillMaxSize()) {
                 Column(
-                    modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    content = first,
-                )
+                    modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(PanePadding),
+                    verticalArrangement = Arrangement.spacedBy(PanePadding),
+                ) { first(pane) }
                 Column(
-                    modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    content = second,
-                )
+                    modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(PanePadding),
+                    verticalArrangement = Arrangement.spacedBy(PanePadding),
+                ) { second(pane) }
             }
         } else {
+            val pane = PaneSize(width = maxWidth - PanePadding * 2, height = height)
             Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PanePadding),
+                verticalArrangement = Arrangement.spacedBy(PanePadding),
             ) {
-                first()
-                second()
+                first(pane)
+                second(pane)
             }
         }
     }

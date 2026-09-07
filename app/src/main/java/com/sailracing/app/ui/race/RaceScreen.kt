@@ -3,7 +3,7 @@ package com.sailracing.app.ui.race
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,14 +36,17 @@ fun RaceScreen(state: RaceUiState, actions: RaceActions, modifier: Modifier = Mo
     }
     AdaptivePanes(
         modifier = modifier,
-        first = {
+        first = { pane ->
             if (state.raceTime.isNotEmpty()) Caption(state.raceTime, modifier = Modifier.fillMaxWidth().testTag("raceTime"))
+            // The rose is square, so on a short pane (landscape) sizing it from the width alone would
+            // push the steering hint off the screen. Whichever of the two is smaller wins.
+            val roseSize = minOf(pane.width * 0.8f, pane.height * 0.62f)
             CompassRose(
                 headingDegrees = state.headingDegrees,
                 windDegrees = state.windDegrees.toDouble(),
                 estimatedWindDegrees = state.estimatedWindDegrees,
                 targets = state.targets,
-                modifier = Modifier.fillMaxWidth(0.8f).align(Alignment.CenterHorizontally).padding(4.dp),
+                modifier = Modifier.size(roseSize).align(Alignment.CenterHorizontally),
             )
             Text(
                 state.steerText.ifEmpty { "Waiting for heading" },
@@ -58,7 +61,7 @@ fun RaceScreen(state: RaceUiState, actions: RaceActions, modifier: Modifier = Mo
                 LabeledValue("Shift", state.shift, Modifier.weight(1f), testTag = "shift")
             }
         },
-        second = {
+        second = { _ ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BigValue("Speed kn", state.speed, Modifier.weight(1f), maxFontSize = 96.sp, testTag = "speed")
                 BigValue("VMG kn", state.vmg, Modifier.weight(1f), maxFontSize = 96.sp, testTag = "vmg")

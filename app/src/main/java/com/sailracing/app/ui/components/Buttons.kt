@@ -63,6 +63,7 @@ fun ConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        textContentColor = RaceColors.White,
         title = { Text(title, style = MaterialTheme.typography.headlineMedium) },
         text = { Text(text, style = MaterialTheme.typography.bodyLarge) },
         confirmButton = {
@@ -107,6 +108,7 @@ fun NumberInputDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
+        textContentColor = RaceColors.White,
         title = { Text(title, style = MaterialTheme.typography.headlineMedium) },
         text = {
             androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
@@ -150,7 +152,9 @@ private fun StepButton(label: String, tag: String, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier.heightIn(min = 56.dp).testTag(tag),
         shape = MaterialTheme.shapes.medium,
-        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSurface),
+        // Not surfaceContainerHigh: that is the dialog's own container colour, which would leave these
+        // looking like bare text rather than the big gloved-finger targets they are.
+        colors = ButtonDefaults.buttonColors(containerColor = RaceColors.Dim, contentColor = RaceColors.White),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp),
     ) {
         Text(label, style = MaterialTheme.typography.titleMedium, maxLines = 1)

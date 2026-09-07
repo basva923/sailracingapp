@@ -50,7 +50,7 @@ fun WindScreen(state: WindUiState, actions: WindActions, modifier: Modifier = Mo
 
     AdaptivePanes(
         modifier = modifier,
-        first = {
+        first = { _ ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 LabeledValue("Wind", state.configuredWind, Modifier.weight(1f), color = RaceColors.Wind, testTag = "configuredWind")
                 LabeledValue("Estimated", state.estimatedWind, Modifier.weight(1f), color = RaceColors.Estimated, testTag = "estimatedWind")
@@ -77,7 +77,7 @@ fun WindScreen(state: WindUiState, actions: WindActions, modifier: Modifier = Mo
             Caption("Shift over the last ${WindUiState.HISTORY_SAMPLES} samples")
             HistoryChart(shiftsDegrees = state.shifts, modifier = Modifier.fillMaxWidth().height(120.dp))
         },
-        second = {
+        second = { _ ->
             Caption("Set the wind from your heading while close-hauled")
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ActionButton(

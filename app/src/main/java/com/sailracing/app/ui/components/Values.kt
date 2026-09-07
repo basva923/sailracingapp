@@ -10,13 +10,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.sailracing.app.ui.theme.RaceColors
+
+/**
+ * A line box is taller than its font size; this is the ratio the bold sans face here needs, used to
+ * turn a height budget into a font size.
+ */
+private const val LineBoxFactor = 1.25f
+
+/**
+ * The largest font size that still fits [available] height, capped at [max]. [BigValue] scales its
+ * number to the width it is given, which on a short pane (landscape) would run off the bottom.
+ */
+@Composable
+fun fontSizeFitting(available: Dp, max: TextUnit): TextUnit {
+    val fits = with(LocalDensity.current) { (available / LineBoxFactor).toSp() }
+    return if (fits < max) fits else max
+}
 
 /** A small muted caption above a big value; the value scales to fill the available width. */
 @Composable
@@ -43,16 +62,21 @@ fun BigValue(
     }
 }
 
-/** A caption in the muted colour, upper case, used as a label everywhere. */
+/**
+ * A caption in the muted colour, upper case, used as a label everywhere. Captions carry real
+ * information ("±40° around the set wind"), so a caption too wide for a narrow screen wraps rather
+ * than being silently cut off in the middle of a word.
+ */
 @Composable
-fun Caption(text: String, modifier: Modifier = Modifier, color: Color = RaceColors.Muted) {
+fun Caption(text: String, modifier: Modifier = Modifier, color: Color = RaceColors.Muted, maxLines: Int = 2) {
     Text(
         text = text.uppercase(),
         modifier = modifier,
         style = MaterialTheme.typography.labelMedium,
         color = color,
         textAlign = TextAlign.Center,
-        maxLines = 1,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 

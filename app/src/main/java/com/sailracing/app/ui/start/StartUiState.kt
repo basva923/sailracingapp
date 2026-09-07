@@ -47,8 +47,9 @@ data class StartUiState(
                 accuracy != null -> "GPS ±${Formatters.meters(accuracy)}" to true
                 else -> "GPS" to true
             }
+            // Kept short: it shares one line with the GPS status on a narrow screen.
             val approach = "Approach ${Formatters.knots(snapshot.approachSpeedMps)} " +
-                if (snapshot.approachSpeedIsMeasured) "(measured VMG)" else "(default)"
+                if (snapshot.approachSpeedIsMeasured) "(VMG)" else "(default)"
             return StartUiState(
                 phase = snapshot.phase,
                 clockLabel = label,

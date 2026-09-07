@@ -1,9 +1,11 @@
 package com.sailracing.app.audio
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -15,7 +17,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Beeps through the alarm stream (loud, independent of the media volume) and vibrates in the same pattern,
- * so cues are noticed on a noisy boat.
+ * so cues are noticed on a noisy boat. The vibration is declared as an alarm too: as ordinary touch
+ * feedback the system would scale it down with the haptics setting, or drop it altogether.
  */
 class AndroidCuePlayer(
     context: Context,
@@ -53,7 +56,15 @@ class AndroidCuePlayer(
             timings += beep.durationMillis.toLong()
             timings += beep.gapMillis.toLong()
         }
-        runCatching { vibrator.vibrate(VibrationEffect.createWaveform(timings.toLongArray(), -1)) }
+        val effect = VibrationEffect.createWaveform(timings.toLongArray(), -1)
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                vibrator.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(effect, ALARM_AUDIO_ATTRIBUTES)
+            }
+        }
     }
 
     fun release() {
@@ -63,5 +74,11 @@ class AndroidCuePlayer(
 
     private companion object {
         const val TONE_VOLUME = 100
+
+        /** The pre-Tiramisu way of asking for an alarm-class vibration. */
+        val ALARM_AUDIO_ATTRIBUTES: AudioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
     }
 }

@@ -23,6 +23,7 @@ import com.sailracing.app.ui.components.ActionButton
 import com.sailracing.app.ui.components.AdaptivePanes
 import com.sailracing.app.ui.components.BigValue
 import com.sailracing.app.ui.components.Caption
+import com.sailracing.app.ui.components.fontSizeFitting
 import com.sailracing.app.ui.components.ConfirmDialog
 import com.sailracing.app.ui.components.StatusChip
 import com.sailracing.app.ui.theme.RaceColors
@@ -48,13 +49,19 @@ fun StartScreen(state: StartUiState, actions: StartActions, modifier: Modifier =
 
     AdaptivePanes(
         modifier = modifier,
-        first = {
+        first = { pane ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 StatusChip(state.gpsStatus, state.gpsOk, Modifier.testTag("gpsStatus"))
-                Caption(state.approachSpeed)
+                Caption(state.approachSpeed, modifier = Modifier.weight(1f, fill = false))
             }
-            BigValue(label = state.clockLabel, value = state.clock, maxFontSize = 140.sp, testTag = "clock")
+            BigValue(
+                label = state.clockLabel,
+                value = state.clock,
+                maxFontSize = fontSizeFitting(pane.height * 0.28f, 140.sp),
+                testTag = "clock",
+            )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val secondaryMax = fontSizeFitting(pane.height * 0.20f, 72.sp)
                 BigValue(
                     label = "Time to kill",
                     value = state.timeToKill,
@@ -64,10 +71,10 @@ fun StartScreen(state: StartUiState, actions: StartActions, modifier: Modifier =
                         Urgency.LATE -> RaceColors.Late
                         Urgency.NEUTRAL -> MaterialTheme.colorScheme.onBackground
                     },
-                    maxFontSize = 72.sp,
+                    maxFontSize = secondaryMax,
                     testTag = "timeToKill",
                 )
-                BigValue(label = "To line", value = state.distanceToLine, modifier = Modifier.weight(1f), maxFontSize = 72.sp, testTag = "distanceToLine")
+                BigValue(label = "To line", value = state.distanceToLine, modifier = Modifier.weight(1f), maxFontSize = secondaryMax, testTag = "distanceToLine")
             }
             if (state.overEarly) {
                 Text(
@@ -79,7 +86,7 @@ fun StartScreen(state: StartUiState, actions: StartActions, modifier: Modifier =
                 )
             }
         },
-        second = {
+        second = { _ ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 ActionButton(
                     text = if (state.pinSet) "Pin ✓" else "Pin",
