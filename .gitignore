@@ -36,3 +36,15 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Android / Gradle
+/.gradle
+/build
+/*/build
+/local.properties
+/captures
+*.apk
+*.aab
+*.ap_
+*.dex
+.kotlin/

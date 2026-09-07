@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Sail Racing</string>
+    <string name="notification_channel">Race session</string>
+    <string name="notification_channel_description">Keeps GPS and the start countdown running in the background</string>
+    <string name="notification_stop">Stop session</string>
+</resources>

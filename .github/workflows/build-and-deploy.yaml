@@ -1,25 +1,46 @@
-name: Build and Deploy
+name: Build and test
 on:
   push:
-    branches:
-      - main
-      - dev
-permissions:
-  contents: write
+    branches: [main, dev, native]
+  pull_request:
+
 jobs:
-  build-and-deploy:
-    concurrency: ci-${{ github.ref }} # Recommended if you intend to make multiple deployments in quick succession.
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout 🛎️
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install and Build 🔧
-        run: |
-          npm ci --legacy-peer-deps
-          npm run build-github-page
-
-      - name: Deploy 🚀
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
         with:
-          folder: dist/sailracingapp/browser
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests and coverage gates (domain, simulation, app)
+        run: ./gradlew check koverVerify --console=plain
+
+      - name: Coverage report
+        if: always()
+        run: ./gradlew koverHtmlReport --console=plain
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug --console=plain
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sail-racing-debug
+          path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            build/reports/kover/html
+            **/build/reports/tests
