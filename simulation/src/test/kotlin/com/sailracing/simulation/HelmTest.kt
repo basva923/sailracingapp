@@ -89,6 +89,20 @@ class HelmTest {
     }
 
     @Test
+    fun `a corridor can sit up one side of the course`() {
+        val mark = course.windwardMark
+        val helm = BeatTo(mark, Tack.STARBOARD, corridorHalfWidthMeters = 100.0, corridorCenterMeters = -100.0)
+        val below = Geo.destination(mark, 180.0, 400.0)
+        // The middle of the course is now the right edge of the corridor: on port, tack back to the left.
+        assertEquals(315.0, helm.steer(context(below, heading = 45.0)))
+        assertEquals(Tack.STARBOARD, helm.tack)
+        // 150 m to the left is inside it, 210 m is over the left edge.
+        assertEquals(315.0, helm.steer(context(Geo.destination(below, 270.0, 150.0), heading = 315.0)))
+        assertEquals(45.0, helm.steer(context(Geo.destination(below, 270.0, 210.0), heading = 315.0)))
+        assertEquals(Tack.PORT, helm.tack)
+    }
+
+    @Test
     fun `run sails the downwind angle and points at the mark once it can`() {
         val mark = course.leewardMark
         val helm = RunTo(mark, Tack.STARBOARD)

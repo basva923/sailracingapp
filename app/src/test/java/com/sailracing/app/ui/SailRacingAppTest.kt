@@ -52,7 +52,7 @@ class SailRacingAppTest {
         graph.scheduler.runCurrent()
         compose.waitForIdle()
 
-        compose.onNodeWithTag("nav_WIND").performClick()
+        compose.onNodeWithTag("nav_RACE").performClick()
         compose.onNodeWithTag("configuredWind").assertIsDisplayed()
         compose.onNodeWithTag("windFromStarboard").performScrollTo().performClick()
         graph.scheduler.runCurrent()
@@ -63,7 +63,7 @@ class SailRacingAppTest {
         graph.scheduler.runCurrent()
         assertEquals(270, graph.raceSession.state.value.wind.settings.directionDegrees)
 
-        compose.onNodeWithTag("nav_MAP").performClick()
+        compose.onNodeWithTag("nav_RACE").performClick()
         compose.onNodeWithTag("courseMap").assertIsDisplayed()
         compose.onNodeWithTag("markHere").performScrollTo().performClick()
         graph.scheduler.runCurrent()

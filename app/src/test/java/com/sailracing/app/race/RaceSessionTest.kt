@@ -6,6 +6,7 @@ import com.sailracing.app.data.SimulationSettings
 import com.sailracing.app.fakes.FakeRepository
 import com.sailracing.app.fakes.FakeSensorSource
 import com.sailracing.app.fakes.RecordingCuePlayer
+import com.sailracing.app.fakes.RecordingSessionLog
 import com.sailracing.app.fakes.SchedulerClock
 import com.sailracing.app.sensors.SimulatedSensorSource
 import com.sailracing.app.time.ScaledClock
@@ -32,6 +33,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -42,6 +44,7 @@ class RaceSessionTest {
         sensors: FakeSensorSource = FakeSensorSource(),
         cues: RecordingCuePlayer = RecordingCuePlayer(),
         clock: SchedulerClock = SchedulerClock(this),
+        log: RecordingSessionLog = RecordingSessionLog(),
     ): RaceSession {
         val dispatcher = StandardTestDispatcher(testScheduler)
         return RaceSession(
@@ -49,6 +52,8 @@ class RaceSessionTest {
             sensorSourceFactory = { _, _ -> sensors },
             cuePlayer = cues,
             scope = this,
+            log = log,
+            versionName = "1.0",
             baseClock = clock,
             engineDispatcher = dispatcher,
         )
@@ -98,6 +103,34 @@ class RaceSessionTest {
         runCurrent()
         assertEquals(TimerState.Idle, session.state.value.timer)
         session.stop()
+    }
+
+    @Test
+    fun everythingOfTheSessionEndsUpInTheLog() = runTest {
+        val log = RecordingSessionLog()
+        val sensors = FakeSensorSource()
+        val session = session(FakeRepository(), sensors, log = log)
+        session.start()
+        runCurrent()
+        // The head of the log says what the session was started with, before anything happened in it.
+        assertTrue(log.lines.first().contains(""""type":"session""""), log.lines.first())
+        assertTrue(log.lines.first().contains(""""app":"1.0""""), log.lines.first())
+        // Restoring the persisted race is the first thing the app was told, so it is logged as well.
+        assertTrue(log.ofType("event").any { it.contains("SetWindSettings") })
+
+        sensors.events.tryEmit(RaceEvent.FixReceived(PositionFix(GeoPoint(51.14, 5.83), session.nowMillis(), 3.0, 315.0, 3.0)))
+        session.startCountdown(1)
+        runCurrent()
+        advanceTimeBy(61_000)
+        runCurrent()
+        session.stop()
+
+        assertTrue(log.ofType("event").any { it.contains(""""event":"FixReceived"""") && it.contains(""""lat":51.14""") })
+        assertTrue(log.ofType("event").any { it.contains("StartCountdown") })
+        assertTrue(log.ofType("cue").any { it.contains(""""cue":"START"""") })
+        // The state is written down about once a second all the way through the minute.
+        assertTrue(log.ofType("state").size >= 60, "only ${log.ofType("state").size} state lines")
+        assertTrue(log.lines.last().contains(""""type":"end""""), log.lines.last())
     }
 
     @Test
@@ -173,6 +206,16 @@ class RaceSessionTest {
         val before = session.nowMillis()
         advanceTimeBy(1_000)
         assertEquals(4_000, session.nowMillis() - before)
+
+        // Loading another simulation replays another scenario, from a clean sheet.
+        session.dispatch(RaceEvent.SetWindwardMark(GeoPoint(51.14, 5.83)))
+        runCurrent()
+        assertNotNull(session.state.value.windwardMark)
+        repository.updateSettings { it.copy(simulation = it.simulation.copy(scenarioId = "oscillating")) }
+        runCurrent()
+        assertEquals(3, created)
+        assertEquals("oscillating", lastSimulation?.scenarioId)
+        assertNull(session.state.value.windwardMark)
         session.stop()
         assertEquals(clock, session.clock)
     }

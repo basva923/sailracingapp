@@ -24,6 +24,7 @@ public class ScenarioRunner(
 
         var boat = initial
         fun windAtBoat() = wind.directionAt(boat.timeSeconds, course.acrossMeters(boat.position))
+        fun windSpeedAtBoat() = wind.speedKnotsAt(boat.timeSeconds, course.acrossMeters(boat.position))
         fun record() {
             val millis = (boat.timeSeconds * 1000).toLong()
             timeline += TimedEvent(millis, RaceEvent.FixReceived(fix(boat, millis)))
@@ -40,8 +41,9 @@ public class ScenarioRunner(
             while (!leg.until.isMet(boat, legStart, course, windAtBoat())) {
                 check(boat.timeSeconds < maxDurationSeconds) { "leg '${leg.name}' did not terminate within $maxDurationSeconds s" }
                 val windNow = windAtBoat()
-                val target = helm.steer(HelmContext(boat, windNow, course, model.polar))
-                boat = BoatDynamics.step(boat, target, windNow, model, STEP_SECONDS)
+                val speedNow = windSpeedAtBoat()
+                val target = helm.steer(HelmContext(boat, windNow, course, model.polar, speedNow))
+                boat = BoatDynamics.step(boat, target, windNow, model, STEP_SECONDS, speedNow)
                 record()
             }
 

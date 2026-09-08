@@ -116,8 +116,8 @@ class RaceCalculatorTest {
         assertEquals(1, course.grid.stats(assertNotNull(course.spec.cellOf(boat))).upwindSamples)
         assertFalse(course.windwardMarkIsSet)
         assertEquals(course.spec.topCenter, course.windwardMark)
-        assertEquals(boat, course.route.first())
-        assertEquals(course.windwardMark, course.route.last())
+        assertEquals(boat, course.raceLine.points.first())
+        assertEquals(course.windwardMark, course.raceLine.points.last())
         assertEquals(TackAdvice.HOLD, snapshot.plan.tackAdvice)
         assertFalse(snapshot.plan.referenceIsMeasured)
     }

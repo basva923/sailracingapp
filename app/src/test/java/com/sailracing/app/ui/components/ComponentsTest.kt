@@ -85,12 +85,17 @@ class ComponentsTest {
     @Test
     fun courseMapRendersEveryLayer() {
         val full = MapUiState(
-            hasFrame = true,
-            area = MapArea(-60.0, -60.0, 240.0, 240.0, 60.0),
-            view = MapView(0.0, 60.0, 300.0),
-            arrows = listOf(MapArrow(0, 0, 4.0, true), MapArrow(1, 0, -4.0, true), MapArrow(2, 1, 0.5, false), MapArrow(3, 3, -0.5, true)),
+                area = MapArea(-60.0, -60.0, 240.0, 240.0, 60.0),
+            view = MapView(0.0, 60.0, 300.0, 300.0),
+            arrows = listOf(
+                MapArrow(0, 0, 4.0, true, confidence = 1.0),
+                MapArrow(1, 0, -4.0, true, confidence = 0.6),
+                MapArrow(2, 1, 0.5, false, confidence = 0.1),
+                MapArrow(3, 3, -0.5, true, confidence = 0.0),
+            ),
             track = listOf(CoursePosition(-50.0, -50.0), CoursePosition(0.0, 0.0), CoursePosition(40.0, 120.0)),
-            route = listOf(CoursePosition(40.0, 120.0), CoursePosition(20.0, 150.0), CoursePosition(0.0, 180.0)),
+            raceLine = listOf(CoursePosition(40.0, 120.0), CoursePosition(20.0, 150.0), CoursePosition(0.0, 180.0)),
+            riskyLine = listOf(CoursePosition(40.0, 120.0), CoursePosition(-30.0, 150.0), CoursePosition(0.0, 180.0)),
             pinEnd = CoursePosition(-50.0, 0.0), boatEnd = CoursePosition(50.0, 0.0),
             boat = CoursePosition(40.0, 120.0), mark = CoursePosition(0.0, 180.0), markIsSet = true,
             boatHeadingDegrees = 45.0, northDegrees = 340.0,
@@ -99,14 +104,16 @@ class ComponentsTest {
         compose.setContent {
             SailRacingTheme {
                 Column {
-                    CourseMap(MapUiState(), modifier = Modifier.size(200.dp))
-                    CourseMap(full, modifier = Modifier.size(200.dp))
+                    CourseMap(MapUiState(), modifier = Modifier.size(100.dp))
+                    CourseMap(full, modifier = Modifier.size(100.dp))
                     CourseMap(
-                        full.copy(favouredSide = FavouredSide.LEFT, favouredTack = Tack.STARBOARD, boatHeadingDegrees = null, pinEnd = null, track = emptyList(), route = emptyList(), markIsSet = false),
+                        full.copy(favouredSide = FavouredSide.LEFT, favouredTack = Tack.STARBOARD, boatHeadingDegrees = null, pinEnd = null, track = emptyList(), raceLine = emptyList(), riskyLine = emptyList(), markIsSet = false),
                         modifier = Modifier.size(200.dp),
                     )
                     // Zoomed far out the cells are too small for arrows.
-                    CourseMap(full.copy(view = MapView(0.0, 0.0, 20_000.0)), modifier = Modifier.size(200.dp))
+                    CourseMap(full.copy(view = MapView(0.0, 0.0, 20_000.0, 20_000.0)), modifier = Modifier.size(100.dp))
+                    // And with no room at all there is nothing to draw.
+                    CourseMap(full, modifier = Modifier.size(10.dp))
                 }
             }
         }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.sailracing.app.data.AppSettings
 import com.sailracing.app.data.RaceRepository
 import com.sailracing.app.di.AppGraph
+import com.sailracing.app.log.SessionLog
 import com.sailracing.app.race.RaceSession
 import com.sailracing.app.ui.map.MapUiState
 import com.sailracing.app.ui.session.SessionUiState
@@ -14,15 +15,21 @@ import com.sailracing.app.ui.wind.WindUiState
 import com.sailracing.domain.race.RaceEvent
 import com.sailracing.domain.race.RaceSnapshot
 import com.sailracing.domain.timer.RacePhase
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** Thin adapter between the UI and the app-wide [RaceSession]; every action is one event. */
-class RaceViewModel(private val session: RaceSession, private val repository: RaceRepository) : ViewModel() {
+class RaceViewModel(
+    private val session: RaceSession,
+    private val repository: RaceRepository,
+    private val log: SessionLog = SessionLog.None,
+) : ViewModel() {
 
     val snapshot: StateFlow<RaceSnapshot> = session.snapshot
     val settings: StateFlow<AppSettings> = session.settings
@@ -89,6 +96,23 @@ class RaceViewModel(private val session: RaceSession, private val repository: Ra
         session.dispatch(RaceEvent.SetWindwardMarkFromLine(bearingDegrees, distanceMeters))
     fun clearWindwardMark() = session.dispatch(RaceEvent.SetWindwardMark(null))
 
+    // The session log: what is on the phone, and how to get rid of it.
+    private val _logSummary = MutableStateFlow("")
+    val logSummary: StateFlow<String> = _logSummary.asStateFlow()
+
+    val logLocation: String get() = log.location
+
+    fun refreshLogSummary() {
+        viewModelScope.launch { _logSummary.value = log.summary() }
+    }
+
+    fun deleteLogs() {
+        viewModelScope.launch {
+            log.deleteAll()
+            _logSummary.value = log.summary()
+        }
+    }
+
     // Settings
     fun updateSettings(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { repository.updateSettings(transform) }
@@ -100,6 +124,7 @@ class RaceViewModel(private val session: RaceSession, private val repository: Ra
 
     class Factory(private val graph: AppGraph) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = RaceViewModel(graph.raceSession, graph.repository) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            RaceViewModel(graph.raceSession, graph.repository, graph.sessionLog) as T
     }
 }

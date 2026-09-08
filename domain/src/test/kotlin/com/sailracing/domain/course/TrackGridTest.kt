@@ -29,23 +29,45 @@ class TrackGridTest {
         assertEquals(800.0, spec.topMeters)
         assertEquals(100, spec.cellCount)
         assertEquals(CoursePosition(0.0, 800.0), spec.topCenter)
-        assertEquals(10.0, GridSpec(0.0, 0.0, 1, 1).cellSizeMeters)
+        assertEquals(5.0, GridSpec(0.0, 0.0, 1, 1).cellSizeMeters)
     }
 
     @Test
-    fun `the area follows what was sailed, snapped to the 10 m grid and aggregated when big`() {
+    fun `the area follows what was sailed, snapped to the 5 m grid and aggregated when big`() {
         assertFailsWith<IllegalArgumentException> { GridSpec.covering(emptyList()) }
-        // One point on a grid line still gets a cell.
-        assertEquals(GridSpec(0.0, 0.0, 1, 1, 10.0), GridSpec.covering(listOf(CoursePosition(0.0, 0.0))))
-        // Twelve 10 m cells fit; one metre more and the cells become 20 m.
+        // One point on a grid line still gets a cell, the smallest there is.
+        assertEquals(GridSpec(0.0, 0.0, 1, 1, 5.0), GridSpec.covering(listOf(CoursePosition(0.0, 0.0))))
+        // Twelve 10 m cells fit; one metre more and the cells become 15 m.
         assertEquals(GridSpec(0.0, 0.0, 1, 12, 10.0), GridSpec.covering(listOf(CoursePosition(0.0, 0.0), CoursePosition(0.0, 120.0))))
-        assertEquals(GridSpec(0.0, 0.0, 1, 7, 20.0), GridSpec.covering(listOf(CoursePosition(0.0, 0.0), CoursePosition(0.0, 121.0))))
-        // A beat: 630 m tall needs 60 m cells, and the box is snapped outwards to whole cells.
+        assertEquals(GridSpec(0.0, 0.0, 1, 9, 15.0), GridSpec.covering(listOf(CoursePosition(0.0, 0.0), CoursePosition(0.0, 121.0))))
+        // A beat: 630 m tall needs 55 m cells, and the box is snapped outwards to whole cells.
         val beat = GridSpec.covering(listOf(CoursePosition(-55.0, -20.0), CoursePosition(130.0, 610.0)))
-        assertEquals(GridSpec(-60.0, -60.0, 4, 12, 60.0), beat)
-        assertEquals(CoursePosition(60.0, 660.0), beat.topCenter)
-        assertEquals(GridSpec(0.0, 0.0, 1, 2, 60.0), GridSpec.covering(listOf(CoursePosition(0.0, 0.0), CoursePosition(0.0, 120.0)), maxCellsPerSide = 2))
+        assertEquals(GridSpec(-55.0, -55.0, 4, 13, 55.0), beat)
+        assertEquals(CoursePosition(55.0, 660.0), beat.topCenter)
+        assertEquals(
+            GridSpec(0.0, 0.0, 1, 2, 60.0),
+            GridSpec.covering(listOf(CoursePosition(0.0, 0.0), CoursePosition(0.0, 120.0)), GridSettings(maxCellsPerSide = 2)),
+        )
         assertEquals(12, GridSpec.MAX_CELLS_PER_SIDE)
+        assertEquals(20, GridSpec.CELL_LIMIT_PER_SIDE)
+    }
+
+    @Test
+    fun `the sailor can choose the square size, up to what the search can still carry`() {
+        val beat = listOf(CoursePosition(-55.0, -20.0), CoursePosition(130.0, 610.0))
+        // 630 m of beat in 50 m squares, however few or many of them that makes.
+        assertEquals(GridSpec(-100.0, -50.0, 5, 14, 50.0), GridSpec.covering(beat, GridSettings(cellSizeMeters = 50.0)))
+        // A size is rounded to the 5 m the area is aligned on.
+        assertEquals(45.0, GridSpec.covering(beat, GridSettings(cellSizeMeters = 47.0)).cellSizeMeters)
+        // The smallest squares there are would be 126 to a side: enlarged to the most the phone can
+        // search in time.
+        assertEquals(35.0, GridSpec.covering(beat, GridSettings(cellSizeMeters = 5.0)).cellSizeMeters)
+        assertTrue(GridSpec.covering(beat, GridSettings(cellSizeMeters = 5.0)).rows <= GridSpec.CELL_LIMIT_PER_SIDE)
+        // On a dinghy practice area of 50 m they are exactly what was asked for.
+        assertEquals(
+            GridSpec(0.0, 0.0, 10, 10, 5.0),
+            GridSpec.covering(listOf(CoursePosition(0.0, 0.0), CoursePosition(50.0, 50.0)), GridSettings(cellSizeMeters = 5.0)),
+        )
     }
 
     @Test

@@ -4,10 +4,13 @@ import com.sailracing.app.audio.CuePlayer
 import com.sailracing.app.data.AppSettings
 import com.sailracing.app.data.PersistedRace
 import com.sailracing.app.data.RaceRepository
+import com.sailracing.app.log.SessionLog
+import com.sailracing.app.log.SessionRecorder
 import com.sailracing.app.sensors.SensorSource
 import com.sailracing.app.time.Clock
 import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.race.RaceEvent
+import com.sailracing.domain.race.RaceSnapshot
 import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.timer.Cue
 import com.sailracing.domain.timer.TimerState
@@ -51,6 +54,42 @@ class FakeRepository(
         savedTimers += timer
         persistedRace.update { it.copy(timer = timer) }
     }
+}
+
+/** A session log that keeps its lines in memory, so a test can read what would have been written. */
+class RecordingSessionLog : SessionLog {
+    private val recorder = SessionRecorder()
+    val lines = mutableListOf<String>()
+    var deleted = 0
+        private set
+
+    override val location: String = "/tmp/sessions"
+
+    override fun start(nowMillis: Long, versionName: String, settings: AppSettings) {
+        lines += recorder.start(nowMillis, versionName, settings).toJsonLine()
+    }
+
+    override fun record(event: RaceEvent, snapshot: RaceSnapshot) {
+        recorder.record(event, snapshot).forEach { lines += it.toJsonLine() }
+    }
+
+    override fun cue(cue: Cue, nowMillis: Long) {
+        lines += recorder.cue(cue, nowMillis).toJsonLine()
+    }
+
+    override fun end(nowMillis: Long) {
+        lines += recorder.end(nowMillis).toJsonLine()
+    }
+
+    override suspend fun summary(): String = "${lines.size} lines"
+
+    override suspend fun deleteAll() {
+        deleted++
+        lines.clear()
+    }
+
+    /** Every line of a kind, e.g. every "state" line. */
+    fun ofType(type: String): List<String> = lines.filter { it.contains("\"type\":\"$type\"") }
 }
 
 /** A sensor source the test pushes events into. */

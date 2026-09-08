@@ -5,6 +5,7 @@ import com.sailracing.app.data.AppSettings
 import com.sailracing.app.data.PersistedRace
 import com.sailracing.app.data.RaceRepository
 import com.sailracing.app.di.AppGraph
+import com.sailracing.app.log.SessionLog
 import com.sailracing.app.race.RaceSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,10 +26,12 @@ class TestAppGraph(
     val sensors = FakeSensorSource()
     val cues = RecordingCuePlayer()
     val fakeRepository = FakeRepository(initialSettings, initialRace)
+    val log = RecordingSessionLog()
 
     override val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + dispatcher)
     override val repository: RaceRepository get() = fakeRepository
     override val cuePlayer: CuePlayer get() = cues
+    override val sessionLog: SessionLog get() = log
     /** Starts the session without blocking: the engine dispatcher only runs when [scheduler] is advanced. */
     fun startSession() {
         applicationScope.launch { raceSession.start() }
@@ -40,6 +43,8 @@ class TestAppGraph(
         sensorSourceFactory = { _, _ -> sensors },
         cuePlayer = cues,
         scope = applicationScope,
+        log = log,
+        versionName = "test",
         baseClock = clock,
         engineDispatcher = dispatcher,
     )

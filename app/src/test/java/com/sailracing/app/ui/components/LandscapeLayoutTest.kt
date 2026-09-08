@@ -12,6 +12,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import kotlin.test.assertTrue
 
 /** The phone mounted sideways: both panes side by side. */
 @RunWith(AndroidJUnit4::class)
@@ -33,5 +34,20 @@ class LandscapeLayoutTest {
         }
         compose.onNodeWithTag("first").assertIsDisplayed()
         compose.onNodeWithTag("second").assertIsDisplayed()
+    }
+
+    @Test
+    fun theMapSitsBesideThePanelInLandscape() {
+        compose.setContent {
+            SailRacingTheme {
+                MapAndPanel(
+                    map = { Text("the map", modifier = Modifier.testTag("map")) },
+                    panel = { Text("the numbers", modifier = Modifier.testTag("panel")) },
+                )
+            }
+        }
+        val map = compose.onNodeWithTag("map").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val panel = compose.onNodeWithTag("panel").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue(map.right <= panel.left, "the map should be to the left of the panel: $map, $panel")
     }
 }

@@ -8,6 +8,9 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.sailracing.domain.course.GridSettings
+import com.sailracing.domain.course.GridSpec
 import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.race.ApproachSpeed
 import com.sailracing.domain.race.RaceSettings
@@ -15,9 +18,13 @@ import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.timer.CuePolicy
 import com.sailracing.domain.timer.TimerState
 import com.sailracing.domain.wind.WindSettings
+import com.sailracing.simulation.SimulationCatalog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+
+/** What is stored for a square size the sailor left to the racing area itself. */
+private const val AUTOMATIC_CELL_SIZE = 0.0
 
 /** Stores settings and race data in a Preferences DataStore. */
 class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : RaceRepository {
@@ -91,11 +98,15 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
         this[Keys.DOWNWIND_MIN_TWA] = race.downwindMinTwaDegrees
         this[Keys.MAX_SAMPLING_TURN_RATE] = race.maxSamplingTurnRateDegreesPerSecond
         this[Keys.HISTORY_CAPACITY] = race.windHistoryCapacity
+        // 0 is "let the racing area choose": DataStore has no null, and no square is ever 0 m.
+        this[Keys.CELL_SIZE] = race.course.grid.cellSizeMeters ?: AUTOMATIC_CELL_SIZE
         this[Keys.KEEP_SCREEN_ON] = settings.keepScreenOn
         this[Keys.VIBRATE] = settings.vibrate
+        this[Keys.LOG_SESSIONS] = settings.logSessions
         this[Keys.SIM_ENABLED] = settings.simulation.enabled
         this[Keys.SIM_AUTOPLAY] = settings.simulation.autoPlayActions
         this[Keys.SIM_SPEED] = settings.simulation.speedFactor
+        this[Keys.SIM_SCENARIO] = settings.simulation.scenarioId
     }
 
     private fun Preferences.toSettings(): AppSettings {
@@ -118,15 +129,23 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
             downwindMinTwaDegrees = this[Keys.DOWNWIND_MIN_TWA] ?: defaults.downwindMinTwaDegrees,
             maxSamplingTurnRateDegreesPerSecond = this[Keys.MAX_SAMPLING_TURN_RATE] ?: defaults.maxSamplingTurnRateDegreesPerSecond,
             windHistoryCapacity = this[Keys.HISTORY_CAPACITY] ?: defaults.windHistoryCapacity,
+            course = defaults.course.copy(
+                grid = GridSettings(
+                    cellSizeMeters = this[Keys.CELL_SIZE]?.takeIf { it >= GridSpec.BASE_CELL_METERS },
+                ),
+            ),
         )
         return AppSettings(
             race = race,
             keepScreenOn = this[Keys.KEEP_SCREEN_ON] ?: true,
             vibrate = this[Keys.VIBRATE] ?: true,
+            logSessions = this[Keys.LOG_SESSIONS] ?: true,
             simulation = SimulationSettings(
                 enabled = this[Keys.SIM_ENABLED] ?: false,
                 autoPlayActions = this[Keys.SIM_AUTOPLAY] ?: true,
                 speedFactor = this[Keys.SIM_SPEED]?.takeIf { it > 0.0 } ?: 1.0,
+                // A simulation dropped from the catalog falls back to the default rather than to nothing.
+                scenarioId = SimulationCatalog.byId(this[Keys.SIM_SCENARIO]).id,
             ),
         )
     }
@@ -179,10 +198,13 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
         val DOWNWIND_MIN_TWA = intPreferencesKey("settings.downwindMinTwa")
         val MAX_SAMPLING_TURN_RATE = doublePreferencesKey("settings.maxSamplingTurnRate")
         val HISTORY_CAPACITY = intPreferencesKey("settings.historyCapacity")
+        val CELL_SIZE = doublePreferencesKey("settings.course.cellSize")
         val KEEP_SCREEN_ON = booleanPreferencesKey("settings.keepScreenOn")
         val VIBRATE = booleanPreferencesKey("settings.vibrate")
+        val LOG_SESSIONS = booleanPreferencesKey("settings.log.sessions")
         val SIM_ENABLED = booleanPreferencesKey("settings.simulation.enabled")
         val SIM_AUTOPLAY = booleanPreferencesKey("settings.simulation.autoPlay")
         val SIM_SPEED = doublePreferencesKey("settings.simulation.speed")
+        val SIM_SCENARIO = stringPreferencesKey("settings.simulation.scenario")
     }
 }

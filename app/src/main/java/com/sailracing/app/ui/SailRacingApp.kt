@@ -3,7 +3,6 @@ package com.sailracing.app.ui
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Sailing
 import androidx.compose.material.icons.filled.Settings
@@ -26,8 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.sailracing.app.ui.map.MapActions
-import com.sailracing.app.ui.map.MapScreen
+import com.sailracing.app.ui.race.RaceActions
+import com.sailracing.app.ui.race.RaceScreen
 import com.sailracing.app.ui.session.SessionActions
 import com.sailracing.app.ui.session.SessionScreen
 import com.sailracing.app.ui.settings.SettingsActions
@@ -35,22 +34,19 @@ import com.sailracing.app.ui.settings.SettingsScreen
 import com.sailracing.app.ui.start.StartActions
 import com.sailracing.app.ui.start.StartScreen
 import com.sailracing.app.ui.theme.RaceColors
-import com.sailracing.app.ui.wind.WindActions
-import com.sailracing.app.ui.wind.WindScreen
 import com.sailracing.domain.timer.RacePhase
 
 /** The app's top-level destinations. */
 enum class Screen(val label: String, val icon: ImageVector) {
     SESSION("Session", Icons.Filled.Sailing),
     START("Start", Icons.Filled.Timer),
-    WIND("Wind", Icons.Filled.Air),
-    MAP("Map", Icons.Filled.Map),
+    RACE("Race", Icons.Filled.Map),
     SETTINGS("Settings", Icons.Filled.Settings),
 }
 
 /**
- * Root of the UI: bottom navigation between the five screens, all fed by one view model. It opens on the
- * Session screen, where a session is started. At the starting gun the app moves to the wind screen by
+ * Root of the UI: bottom navigation between the four screens, all fed by one view model. It opens on the
+ * Session screen, where a session is started. At the starting gun the app moves to the racing screen by
  * itself: the start is over, the beat begins.
  */
 @Composable
@@ -59,7 +55,7 @@ fun SailRacingApp(viewModel: RaceViewModel, versionName: String = "", initialScr
     val phase by viewModel.phase.collectAsStateWithLifecycle()
     var previousPhase by rememberSaveable { mutableStateOf(phase) }
     LaunchedEffect(phase) {
-        if (previousPhase == RacePhase.COUNTDOWN && phase == RacePhase.RACING) screen = Screen.WIND
+        if (previousPhase == RacePhase.COUNTDOWN && phase == RacePhase.RACING) screen = Screen.RACE
         previousPhase = phase
     }
 
@@ -120,33 +116,24 @@ fun SailRacingApp(viewModel: RaceViewModel, versionName: String = "", initialScr
                     modifier = content,
                 )
             }
-            Screen.WIND -> {
-                val state by viewModel.windUiState.collectAsStateWithLifecycle()
-                WindScreen(
-                    state = state,
+            Screen.RACE -> {
+                val mapState by viewModel.mapUiState.collectAsStateWithLifecycle()
+                val windState by viewModel.windUiState.collectAsStateWithLifecycle()
+                RaceScreen(
+                    map = mapState,
+                    wind = windState,
                     actions = remember(viewModel) {
-                        WindActions(
+                        RaceActions(
                             setWindDirection = viewModel::setWindDirection,
                             setTackAngle = viewModel::setTackAngle,
                             setDownwindAngle = viewModel::setDownwindAngle,
                             windFromStarboard = viewModel::setWindFromStarboardTack,
                             windFromPort = viewModel::setWindFromPortTack,
                             resetStatistics = viewModel::resetStatistics,
-                        )
-                    },
-                    modifier = content,
-                )
-            }
-            Screen.MAP -> {
-                val state by viewModel.mapUiState.collectAsStateWithLifecycle()
-                MapScreen(
-                    state = state,
-                    actions = remember(viewModel) {
-                        MapActions(
-                            clearTrack = viewModel::clearTrack,
                             markHere = viewModel::markWindwardMark,
                             setMarkFromLine = viewModel::setWindwardMarkFromLine,
                             clearMark = viewModel::clearWindwardMark,
+                            clearTrack = viewModel::clearTrack,
                         )
                     },
                     modifier = content,
@@ -154,11 +141,17 @@ fun SailRacingApp(viewModel: RaceViewModel, versionName: String = "", initialScr
             }
             Screen.SETTINGS -> {
                 val settings by viewModel.settings.collectAsStateWithLifecycle()
+                val logSummary by viewModel.logSummary.collectAsStateWithLifecycle()
+                LaunchedEffect(Unit) { viewModel.refreshLogSummary() }
                 SettingsScreen(
                     settings = settings,
-                    actions = remember(viewModel) { SettingsActions(update = viewModel::updateSettings) },
+                    actions = remember(viewModel) {
+                        SettingsActions(update = viewModel::updateSettings, deleteLogs = viewModel::deleteLogs)
+                    },
                     modifier = content,
                     versionName = versionName,
+                    logSummary = logSummary,
+                    logLocation = viewModel.logLocation,
                 )
             }
         }

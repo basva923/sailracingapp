@@ -33,6 +33,18 @@ class BoatDynamicsTest {
     }
 
     @Test
+    fun `less wind is less speed, and the reference wind is what the polar means`() {
+        fun settledSpeed(windSpeedKnots: Double): Double {
+            var boat = BoatState(0.0, origin, headingDegrees = 90.0, speedMps = 0.0)
+            repeat(30) { boat = BoatDynamics.step(boat, 90.0, 0.0, model, 1.0, windSpeedKnots) }
+            return boat.speedMps
+        }
+        assertEquals(3.0, settledSpeed(WindModel.DEFAULT_SPEED_KNOTS), 1e-3)
+        assertEquals(1.5, settledSpeed(3.0), 1e-3)
+        assertTrue(settledSpeed(20.0) > 3.0)
+    }
+
+    @Test
     fun `head to wind the boat stalls`() {
         var boat = BoatState(0.0, origin, headingDegrees = 0.0, speedMps = 3.0)
         repeat(30) { boat = BoatDynamics.step(boat, 0.0, 0.0, model, 1.0) }

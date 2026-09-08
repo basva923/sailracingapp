@@ -13,6 +13,7 @@ public data class HelmContext(
     val windDirectionDegrees: Double,
     val course: RaceCourse,
     val polar: BoatPolar,
+    val windSpeedKnots: Double = polar.referenceWindKnots,
 )
 
 /** A steering strategy: returns the heading to aim for at this instant. Helms may keep state between calls. */
@@ -45,14 +46,17 @@ public class CloseHauled(private val tack: Tack) : Helm() {
  * Beat upwind to a mark: sail close-hauled on the current tack until the mark can be laid,
  * then point straight at it (which is how the boat changes tack on the layline).
  *
- * @property corridorHalfWidthMeters when set, the helm stays within this distance of the course axis and
- *   tacks at the edge of the corridor, zigzagging up the middle like a boat that plays the shifts,
- *   instead of sailing out to a layline in one board.
+ * @property corridorHalfWidthMeters when set, the helm stays within this distance of the middle of its
+ *   corridor and tacks at the edge of it, zigzagging up like a boat that plays the shifts, instead of
+ *   sailing out to a layline in one board.
+ * @property corridorCenterMeters where that corridor sits, in metres to the right of the course axis:
+ *   0 beats up the middle of the course, -100 up the left of it.
  */
 public class BeatTo(
     private val mark: GeoPoint,
     initialTack: Tack,
     private val corridorHalfWidthMeters: Double? = null,
+    private val corridorCenterMeters: Double = 0.0,
 ) : Helm() {
     public var tack: Tack = initialTack
         private set
@@ -71,7 +75,11 @@ public class BeatTo(
         if (limit != null) {
             // Starboard tack carries the boat to the left of the axis, port to the right.
             val across = context.course.acrossMeters(context.boat.position)
-            val leavingCorridor = if (tack == Tack.STARBOARD) across <= -limit else across >= limit
+            val leavingCorridor = if (tack == Tack.STARBOARD) {
+                across <= corridorCenterMeters - limit
+            } else {
+                across >= corridorCenterMeters + limit
+            }
             if (leavingCorridor) tack = tack.opposite()
         }
         return closeHauledHeading(wind, context.polar.upwindAngleDegrees, tack)
@@ -135,9 +143,10 @@ public class TimedStart(
         val below = Geo.destination(center, downwind, standoffMeters)
         val left = Geo.destination(below, Geo.initialBearingDegrees(course.boatEnd, course.pinEnd), standoffMeters)
         val right = Geo.destination(below, Geo.initialBearingDegrees(course.pinEnd, course.boatEnd), standoffMeters)
-        val closeHauledSpeed = polar.speedMps(polar.upwindAngleDegrees)
+        val closeHauledSpeed = polar.speedMps(polar.upwindAngleDegrees, context.windSpeedKnots)
         fun neededFrom(point: GeoPoint) = Geo.distanceMeters(point, center) / closeHauledSpeed + accelerationAllowanceSeconds
-        val roundTrip = 2 * Geo.distanceMeters(left, right) / polar.maxSpeedMps + ROUND_TRIP_MARGIN_SECONDS
+        val roundTrip = 2 * Geo.distanceMeters(left, right) / polar.speedMps(BEAM_REACH_DEGREES, context.windSpeedKnots) +
+            ROUND_TRIP_MARGIN_SECONDS
 
         when (phase) {
             Phase.SHUTTLE -> {
@@ -164,6 +173,9 @@ public class TimedStart(
     private companion object {
         const val ARRIVAL_RADIUS_METERS = 6.0
         const val ROUND_TRIP_MARGIN_SECONDS = 10.0
+
+        /** The shuttle is sailed across the wind, where the polar is at its fastest. */
+        const val BEAM_REACH_DEGREES = 90.0
     }
 }
 

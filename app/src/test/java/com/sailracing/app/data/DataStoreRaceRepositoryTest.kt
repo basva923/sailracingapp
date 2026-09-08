@@ -9,6 +9,7 @@ import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.race.ApproachSpeed
 import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.timer.CuePolicy
+import com.sailracing.simulation.SimulationCatalog
 import com.sailracing.domain.timer.TimerState
 import com.sailracing.domain.wind.WindSettings
 import kotlinx.coroutines.CoroutineScope
@@ -65,7 +66,7 @@ class DataStoreRaceRepositoryTest {
             ),
             keepScreenOn = false,
             vibrate = false,
-            simulation = SimulationSettings(enabled = true, autoPlayActions = false, speedFactor = 5.0),
+            simulation = SimulationSettings(enabled = true, autoPlayActions = false, speedFactor = 5.0, scenarioId = "oscillating"),
         )
         repository.updateSettings { custom }
         assertEquals(custom, repository.settings.first())
@@ -73,6 +74,10 @@ class DataStoreRaceRepositoryTest {
         val fallback = custom.copy(race = custom.race.copy(approachSpeed = ApproachSpeed.AverageUpwindVmg(1.1)))
         repository.updateSettings { fallback }
         assertEquals(fallback, repository.settings.first())
+
+        // A simulation this version does not have any more comes back as the default one.
+        repository.updateSettings { it.copy(simulation = it.simulation.copy(scenarioId = "a simulation from a later version")) }
+        assertEquals(SimulationCatalog.default.id, repository.settings.first().simulation.scenarioId)
 
         scope.cancel()
     }

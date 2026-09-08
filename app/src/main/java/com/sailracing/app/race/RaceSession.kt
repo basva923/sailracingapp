@@ -4,6 +4,7 @@ import com.sailracing.app.audio.CuePlayer
 import com.sailracing.app.data.AppSettings
 import com.sailracing.app.data.RaceRepository
 import com.sailracing.app.data.SimulationSettings
+import com.sailracing.app.log.SessionLog
 import com.sailracing.app.sensors.SensorSource
 import com.sailracing.app.time.Clock
 import com.sailracing.app.time.ScaledClock
@@ -40,6 +41,9 @@ import kotlinx.coroutines.withContext
  * A session is started and ended by the sailor (from the Session screen); its data (line, mark, track,
  * statistics) outlives an end and is only forgotten by [RaceEvent.ClearSession].
  * All engine access is serialised on one dispatcher so events never interleave.
+ *
+ * Everything that goes through it is written to the [SessionLog] as it happens: every event in, every
+ * snapshot out, every cue played. Nothing of a session is only ever in memory.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RaceSession(
@@ -47,6 +51,8 @@ class RaceSession(
     private val sensorSourceFactory: (SimulationSettings, Clock) -> SensorSource,
     private val cuePlayer: CuePlayer,
     private val scope: CoroutineScope,
+    private val log: SessionLog = SessionLog.None,
+    private val versionName: String = "",
     private val baseClock: Clock = SystemClock,
     private val tickMillis: Long = DEFAULT_TICK_MILLIS,
     engineDispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
@@ -90,6 +96,8 @@ class RaceSession(
         val initialSettings = repository.settings.first()
         val persisted = repository.persistedRace.first()
         _settings.value = initialSettings
+        // Opened before the first event, so that the log of a session starts with what it started from.
+        log.start(baseClock.nowMillis(), versionName, initialSettings)
         withContext(engineContext) {
             applyLocked(RaceEvent.UpdateSettings(initialSettings.race))
             applyLocked(RaceEvent.SetStartLine(persisted.startLine))
@@ -106,6 +114,7 @@ class RaceSession(
 
     fun stop() {
         if (!_isRunning.value) return
+        log.end(clock.nowMillis())
         sensorJob?.cancel()
         sensorJob = null
         jobs.forEach { it.cancel() }
@@ -127,9 +136,13 @@ class RaceSession(
     private fun applyLocked(event: RaceEvent) {
         val effects = engine.dispatch(event)
         publish()
+        log.record(event, _snapshot.value)
         effects.forEach { effect ->
             when (effect) {
-                is RaceEffect.PlayCue -> cuePlayer.play(effect.cue)
+                is RaceEffect.PlayCue -> {
+                    cuePlayer.play(effect.cue)
+                    log.cue(effect.cue, clock.nowMillis())
+                }
             }
         }
     }
@@ -152,6 +165,9 @@ class RaceSession(
             val previous = _settings.value
             _settings.value = settings
             if (settings.race != previous.race) dispatch(RaceEvent.UpdateSettings(settings.race))
+            // Another simulation is another day on another course: what was measured of the old one would
+            // only pollute the new one's track, wind and statistics.
+            if (settings.simulation.scenarioId != previous.simulation.scenarioId) dispatch(RaceEvent.ClearSession)
             if (settings.simulation != previous.simulation) startSensors(settings.simulation)
         }
     }

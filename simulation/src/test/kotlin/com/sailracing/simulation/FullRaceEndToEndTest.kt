@@ -11,6 +11,7 @@ import com.sailracing.domain.race.RaceSettings
 import com.sailracing.domain.race.RaceSnapshot
 import com.sailracing.domain.race.RaceState
 import com.sailracing.domain.course.CourseModel
+import com.sailracing.domain.course.RaceLineFinder
 import com.sailracing.domain.course.Side
 import com.sailracing.domain.course.TrackGrid
 import com.sailracing.domain.startline.LineSide
@@ -23,6 +24,7 @@ import com.sailracing.domain.wind.PointOfSail
 import com.sailracing.domain.wind.Tack
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -223,10 +225,16 @@ class FullRaceEndToEndTest {
         // Halfway up the beat the app draws a line from the boat to the mark that stays inside the area.
         val midBeat = at(gun + (beatEnd - gun) / 2 / 1000 * 1000)
         val midCourse = assertNotNull(midBeat.course)
-        assertTrue(midCourse.route.size >= 2, "route ${midCourse.route}")
-        assertEquals(midCourse.boat, midCourse.route.first())
-        assertEquals(midCourse.windwardMark, midCourse.route.last())
-        assertTrue(midCourse.route.all { it.acrossMeters in midCourse.spec.leftMeters..midCourse.spec.rightMeters && it.upwindMeters in midCourse.spec.bottomMeters..midCourse.spec.topMeters })
+        val raceLine = midCourse.raceLine
+        assertTrue(raceLine.points.size >= 2, "race line $raceLine")
+        assertEquals(midCourse.boat, raceLine.points.first())
+        assertEquals(midCourse.windwardMark, raceLine.points.last())
+        assertTrue(raceLine.points.all { it.acrossMeters in midCourse.spec.leftMeters..midCourse.spec.rightMeters && it.upwindMeters in midCourse.spec.bottomMeters..midCourse.spec.topMeters })
+        // What is left of the beat: never quicker than sailing straight at the mark, and not a wild detour either.
+        val boat = assertNotNull(midCourse.boat)
+        val toGo = hypot(midCourse.windwardMark.acrossMeters - boat.acrossMeters, midCourse.windwardMark.upwindMeters - boat.upwindMeters)
+        assertTrue(raceLine.seconds > toGo / RaceLineFinder.BOAT_SPEED_MPS, "race line $raceLine over $toGo m")
+        assertTrue(raceLine.seconds < 3 * toGo / RaceLineFinder.BOAT_SPEED_MPS, "race line $raceLine over $toGo m")
         val sides = beat.plan.sides
         val windDifference = assertNotNull(sides.windDifferenceDegrees)
         val expectedDifference = result.wind.shearDegreesPerMeter *

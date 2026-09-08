@@ -27,20 +27,24 @@ public data class SailingModel(
 
 public object BoatDynamics {
 
-    /** Advances [state] by [dtSeconds], turning towards [targetHeadingDegrees] in wind from [windDirectionDegrees]. */
+    /**
+     * Advances [state] by [dtSeconds], turning towards [targetHeadingDegrees] in [windSpeedKnots] of wind
+     * from [windDirectionDegrees].
+     */
     public fun step(
         state: BoatState,
         targetHeadingDegrees: Double,
         windDirectionDegrees: Double,
         model: SailingModel,
         dtSeconds: Double,
+        windSpeedKnots: Double = model.polar.referenceWindKnots,
     ): BoatState {
         val maxTurn = model.turnRateDegreesPerSecond * dtSeconds
         val turn = Angles.signedDifference(state.headingDegrees, targetHeadingDegrees).coerceIn(-maxTurn, maxTurn)
         val heading = Angles.normalize(state.headingDegrees + turn)
 
         val twa = Angles.signedDifference(heading, windDirectionDegrees)
-        val targetSpeed = model.polar.speedMps(twa)
+        val targetSpeed = model.polar.speedMps(twa, windSpeedKnots)
         val blend = 1.0 - exp(-dtSeconds / model.accelerationTimeConstantSeconds)
         val speed = state.speedMps + (targetSpeed - state.speedMps) * blend
 

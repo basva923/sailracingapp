@@ -3,6 +3,7 @@ package com.sailracing.app.ui.settings
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -16,6 +17,7 @@ import com.sailracing.app.data.AppSettings
 import com.sailracing.app.ui.theme.SailRacingTheme
 import com.sailracing.domain.race.ApproachSpeed
 import com.sailracing.domain.timer.CuePolicy
+import com.sailracing.simulation.SimulationCatalog
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,10 +33,24 @@ class SettingsScreenTest {
     val compose = createComposeRule()
 
     private var settings by mutableStateOf(AppSettings())
-    private val actions = SettingsActions(update = { transform -> settings = transform(settings) })
+    private var deletedLogs = 0
+    private val actions = SettingsActions(
+        update = { transform -> settings = transform(settings) },
+        deleteLogs = { deletedLogs++ },
+    )
 
     private fun show() {
-        compose.setContent { SailRacingTheme { SettingsScreen(settings = settings, actions = actions, versionName = "1.0") } }
+        compose.setContent {
+            SailRacingTheme {
+                SettingsScreen(
+                    settings = settings,
+                    actions = actions,
+                    versionName = "1.0",
+                    logSummary = "3 sessions · 1.2 MB",
+                    logLocation = "/sdcard/Android/data/com.sailracing.app/files/sessions",
+                )
+            }
+        }
     }
 
     @Test
@@ -56,6 +72,51 @@ class SettingsScreenTest {
         assertEquals(true, settings.simulation.enabled)
         compose.onNodeWithTag("simulationAutoPlay").performScrollTo().performClick()
         assertEquals(false, settings.simulation.autoPlayActions)
+        compose.onNodeWithTag("logSessions").performScrollTo().performClick()
+        assertEquals(false, settings.logSessions)
+    }
+
+    @Test
+    fun theSquareSizeIsAutomaticUntilTheSailorChoosesOne() {
+        show()
+        compose.onNodeWithTag("cellSize").performScrollTo().assertTextEquals("Square size", "Automatic")
+        // Switching it on starts from the default, and the dialog steps it in fives of metres.
+        compose.onNodeWithTag("chooseCellSize").performScrollTo().performClick()
+        assertEquals(50.0, settings.race.course.grid.cellSizeMeters)
+        compose.onNodeWithTag("cellSize").performScrollTo().assertTextEquals("Square size", "50 m")
+        compose.onNodeWithTag("cellSize").performClick()
+        compose.onNodeWithTag("stepUp").performClick()
+        compose.onNodeWithTag("numberValue").assertTextEquals("55 m")
+        compose.onNodeWithTag("stepUpBig").performClick()
+        compose.onNodeWithTag("numberValue").assertTextEquals("105 m")
+        compose.onNodeWithTag("confirm").performClick()
+        assertEquals(105.0, settings.race.course.grid.cellSizeMeters)
+        // The smallest square there is: half a boat length.
+        compose.onNodeWithTag("cellSize").performScrollTo().performClick()
+        repeat(2) { compose.onNodeWithTag("stepDownBig").performClick() }
+        compose.onNodeWithTag("numberValue").assertTextEquals("5 m")
+        compose.onNodeWithTag("stepDown").performClick()
+        compose.onNodeWithTag("numberValue").assertTextEquals("5 m")
+        compose.onNodeWithTag("confirm").performClick()
+        assertEquals(5.0, settings.race.course.grid.cellSizeMeters)
+        // And switching it off gives the racing area its choice back.
+        compose.onNodeWithTag("chooseCellSize").performScrollTo().performClick()
+        assertEquals(null, settings.race.course.grid.cellSizeMeters)
+    }
+
+    @Test
+    fun theLogsCanBeSeenAndDeleted() {
+        show()
+        compose.onNodeWithTag("deleteLogs").performScrollTo().assertTextEquals("Delete the logs", "3 sessions · 1.2 MB")
+        compose.onNodeWithTag("logLocation").performScrollTo()
+            .assertTextEquals("/sdcard/Android/data/com.sailracing.app/files/sessions")
+        compose.onNodeWithTag("deleteLogs").performClick()
+        compose.onNodeWithText("Delete the logs?").assertIsDisplayed()
+        compose.onNodeWithTag("cancel").performClick()
+        assertEquals(0, deletedLogs)
+        compose.onNodeWithTag("deleteLogs").performScrollTo().performClick()
+        compose.onNodeWithTag("confirm").performClick()
+        assertEquals(1, deletedLogs)
     }
 
     @Test
@@ -108,6 +169,25 @@ class SettingsScreenTest {
         compose.onNodeWithTag("confirm").performClick()
         val approach = assertIs<ApproachSpeed.AverageUpwindVmg>(settings.race.approachSpeed)
         assertEquals(3.9, approach.fallbackMps * 1.943844, 0.01)
+    }
+
+    @Test
+    fun oneOfTheSimulationsCanBeLoaded() {
+        show()
+        // The row says which one is loaded now; the dialog offers every one of them.
+        compose.onNodeWithTag("simulationScenario").performScrollTo()
+            .assertTextContains(SimulationCatalog.default.title)
+        compose.onNodeWithTag("simulationScenario").performClick()
+        SimulationCatalog.all.forEach { compose.onNodeWithTag("choice_" + it.id).performScrollTo().assertIsDisplayed() }
+        compose.onNodeWithTag("choice_oscillating").performScrollTo().performClick()
+        assertEquals("oscillating", settings.simulation.scenarioId)
+        assertEquals("Oscillating breeze, 10 kn from 020°, ±10° every 6 minutes", settings.simulation.scenario.title)
+        compose.onNodeWithTag("simulationScenario").performScrollTo()
+            .assertTextContains(settings.simulation.scenario.title)
+        // Closing the dialog without choosing keeps the one that is loaded.
+        compose.onNodeWithTag("simulationScenario").performClick()
+        compose.onNodeWithTag("cancel").performClick()
+        assertEquals("oscillating", settings.simulation.scenarioId)
     }
 
     @Test

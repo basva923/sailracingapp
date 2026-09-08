@@ -1,5 +1,6 @@
 package com.sailracing.domain.race
 
+import com.sailracing.domain.course.CourseSettings
 import com.sailracing.domain.timer.CuePolicy
 
 /** How the speed used for "time to line" is chosen. */
@@ -39,6 +40,8 @@ public sealed interface ApproachSpeed {
  *   at true wind angles from this up to 180.
  * @property maxSamplingTurnRateDegreesPerSecond no wind/speed sample is taken while the heading changes faster
  *   than this, because a heading-based wind estimate is meaningless in the middle of a tack or gybe.
+ * @property course how the racing area is cut into squares, what its wind is believed to be like, and how
+ *   the race line over it is searched for.
  */
 public data class RaceSettings(
     val approachSpeed: ApproachSpeed = ApproachSpeed.AverageUpwindVmg(),
@@ -51,6 +54,7 @@ public data class RaceSettings(
     val downwindMinTwaDegrees: Int = DEFAULT_DOWNWIND_MIN_TWA,
     val maxSamplingTurnRateDegreesPerSecond: Double = DEFAULT_MAX_SAMPLING_TURN_RATE,
     val windHistoryCapacity: Int = 3600,
+    val course: CourseSettings = CourseSettings(),
 ) {
     public companion object {
         public const val DEFAULT_UPWIND_MAX_TWA: Int = 60

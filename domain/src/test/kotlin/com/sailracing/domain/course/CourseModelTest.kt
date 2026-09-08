@@ -21,7 +21,7 @@ class CourseModelTest {
         TrackPoint(seconds * 1000, frame.toGeo(CoursePosition(across, upwind)), speedMps = 3.0, headingDegrees = 0.0, upwindWindDegrees = wind)
 
     private val track = Track(listOf(point(5.0, -25.0), point(15.0, 45.0, wind = 5.0), point(25.0, 85.0, wind = 5.0)))
-    private val inputs = CourseInputs(frame, line, windwardMark = null, boat = boat, tackAngleDegrees = 45, downwindAngleDegrees = 140)
+    private val inputs = CourseInputs(frame, line, windwardMark = null, boat = boat, tackAngleDegrees = 45)
 
     @Test
     fun `without a set mark the top of the area is the mark`() {
@@ -39,8 +39,8 @@ class CourseModelTest {
         val boat = assertNotNull(course.boat)
         assertEquals(25.0, boat.acrossMeters, 0.01)
         assertEquals(85.0, boat.upwindMeters, 0.01)
-        assertEquals(boat, course.route.first())
-        assertEquals(course.windwardMark, course.route.last())
+        assertEquals(boat, course.raceLine.points.first())
+        assertEquals(course.windwardMark, course.raceLine.points.last())
         assertEquals(0, course.windField.measuredCount)
         assertTrue(course.toString().startsWith("CourseModel(spec="))
     }
@@ -52,20 +52,20 @@ class CourseModelTest {
         assertTrue(course.windwardMarkIsSet)
         assertEquals(-40.0, course.windwardMark.acrossMeters, 0.01)
         assertEquals(495.0, course.windwardMark.upwindMeters, 0.01)
-        assertEquals(50.0, course.spec.cellSizeMeters)
-        assertEquals(500.0, course.spec.topMeters)
-        assertEquals(course.windwardMark, course.route.last())
+        assertEquals(45.0, course.spec.cellSizeMeters)
+        assertEquals(495.0, course.spec.topMeters)
+        assertEquals(course.windwardMark, course.raceLine.points.last())
     }
 
     @Test
-    fun `without a boat there is no route, and an empty track still has an area`() {
+    fun `without a boat there is no race line, and an empty track still has an area`() {
         val course = CourseModel.build(Track(), inputs.copy(boat = null, line = StartLine()))
-        assertTrue(course.route.isEmpty())
+        assertTrue(course.raceLine.isEmpty)
         assertNull(course.boat)
         assertNull(course.pinEnd)
         assertNull(course.boatEnd)
         assertTrue(course.trackPositions.isEmpty())
-        assertEquals(GridSpec(0.0, 0.0, 1, 1, 10.0), course.spec)
+        assertEquals(GridSpec(0.0, 0.0, 1, 1, 5.0), course.spec)
     }
 
     @Test

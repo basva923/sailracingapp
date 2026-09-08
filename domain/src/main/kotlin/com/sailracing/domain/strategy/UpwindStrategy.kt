@@ -10,9 +10,6 @@ import com.sailracing.domain.wind.WindHistogram
 import com.sailracing.domain.wind.WindHistory
 import com.sailracing.domain.wind.WindReference
 import kotlin.math.abs
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
 
 /** What to do with the tack you are on. */
 public enum class TackAdvice {
@@ -176,15 +173,8 @@ public object UpwindStrategy {
 
     /** The circular mean of the recent upwind samples relative to [referenceDegrees], or null with too few. */
     private fun trend(history: WindHistory, referenceDegrees: Double): Double? {
-        val recent = history.samples.asReversed().asSequence().filter { it.upwind }.take(TREND_SAMPLES).toList()
+        val recent = history.recentUpwind(TREND_SAMPLES)
         if (recent.size < MIN_TREND_SAMPLES) return null
-        var c = 0.0
-        var s = 0.0
-        for (sample in recent) {
-            val radians = Angles.toRadians(sample.directionDegrees)
-            c += cos(radians)
-            s += sin(radians)
-        }
-        return Angles.signedDifference(referenceDegrees, Angles.normalize(Angles.toDegrees(atan2(s, c))))
+        return Angles.signedDifference(referenceDegrees, WindHistory.meanDirectionDegrees(recent)!!)
     }
 }

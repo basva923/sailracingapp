@@ -1,11 +1,14 @@
 package com.sailracing.domain.course
 
 import com.sailracing.domain.geo.Angles
+import com.sailracing.domain.wind.SpeedHistogram
 import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.hypot
+import kotlin.math.ln
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -16,7 +19,7 @@ public enum class Side { LEFT, RIGHT }
 /**
  * The racing area: a rectangle of square cells laid over a [CourseFrame], in metres. It is not a setting
  * but follows the track: [covering] fits it around everything sailed, snapped to the 10 m sub-grid, with
- * cells of 10 m or a multiple of it when finer cells would be too small to draw.
+ * cells of [GridSpec.BASE_CELL_METERS] or a multiple of it when finer cells would be too small to draw.
  *
  * @property leftMeters across-coordinate of the left edge.
  * @property bottomMeters upwind-coordinate of the bottom (downwind) edge.
@@ -79,10 +82,21 @@ public data class GridSpec(
     }
 
     public companion object {
-        public const val BASE_CELL_METERS: Double = 10.0
+        /**
+         * The grid everything is aligned on, and the smallest square there is: half a boat length, which
+         * is as fine as a GPS fix and a wind read off the tack angle are worth binning.
+         */
+        public const val BASE_CELL_METERS: Double = 5.0
 
-        /** More cells than this along the longer side and the 10 m cells are aggregated into bigger ones. */
+        /** More cells than this along the longer side and the cells are aggregated into bigger ones. */
         public const val MAX_CELLS_PER_SIDE: Int = 12
+
+        /**
+         * The most cells an area may ever have along a side, whatever size the sailor asked for. Every
+         * square costs the wind field a blend and the Monte Carlo a search, so this is where "more detail"
+         * stops being worth it on a phone in a boat.
+         */
+        public const val CELL_LIMIT_PER_SIDE: Int = 20
 
         /**
          * How far [position] lies to the right (positive) of the axis from the origin towards [axisTarget].
@@ -95,33 +109,41 @@ public data class GridSpec(
         }
 
         /**
-         * The smallest area of whole cells around [positions]: 10 m cells aligned on the origin, aggregated
-         * into the smallest multiple of 10 m that keeps the longer side within about [maxCellsPerSide] cells.
+         * The smallest area of whole cells around [positions]: cells aligned on the origin, of the size
+         * [GridSettings.cellSizeMeters] asks for or, without one, of the smallest multiple of
+         * [BASE_CELL_METERS] that keeps the longer side within [GridSettings.maxCellsPerSide] cells.
+         * A chosen size is only ever overruled upwards, when it would cut the area into more than
+         * [CELL_LIMIT_PER_SIDE] cells along a side.
          */
-        public fun covering(
-            positions: List<CoursePosition>,
-            maxCellsPerSide: Int = MAX_CELLS_PER_SIDE,
-            baseCellMeters: Double = BASE_CELL_METERS,
-        ): GridSpec {
+        public fun covering(positions: List<CoursePosition>, settings: GridSettings = GridSettings()): GridSpec {
             require(positions.isNotEmpty()) { "an area needs at least one position" }
             fun down(value: Double, cell: Double) = floor(value / cell) * cell
             fun up(value: Double, cell: Double) = ceil(value / cell) * cell
 
-            var left = down(positions.minOf { it.acrossMeters }, baseCellMeters)
-            var right = up(positions.maxOf { it.acrossMeters }, baseCellMeters)
-            var bottom = down(positions.minOf { it.upwindMeters }, baseCellMeters)
-            var top = up(positions.maxOf { it.upwindMeters }, baseCellMeters)
-            if (right <= left) right = left + baseCellMeters
-            if (top <= bottom) top = bottom + baseCellMeters
+            var left = down(positions.minOf { it.acrossMeters }, BASE_CELL_METERS)
+            var right = up(positions.maxOf { it.acrossMeters }, BASE_CELL_METERS)
+            var bottom = down(positions.minOf { it.upwindMeters }, BASE_CELL_METERS)
+            var top = up(positions.maxOf { it.upwindMeters }, BASE_CELL_METERS)
+            if (right <= left) right = left + BASE_CELL_METERS
+            if (top <= bottom) top = bottom + BASE_CELL_METERS
 
             val extent = max(right - left, top - bottom)
-            val cell = ceil(extent / (baseCellMeters * maxCellsPerSide) - EPSILON).coerceAtLeast(1.0) * baseCellMeters
+            val chosen = settings.cellSizeMeters
+            val cell = if (chosen == null) {
+                fitting(extent, settings.maxCellsPerSide)
+            } else {
+                max((chosen / BASE_CELL_METERS).roundToInt() * BASE_CELL_METERS, fitting(extent, CELL_LIMIT_PER_SIDE))
+            }
             left = down(left, cell)
             right = up(right, cell)
             bottom = down(bottom, cell)
             top = up(top, cell)
             return GridSpec(left, bottom, ((right - left) / cell).roundToInt(), ((top - bottom) / cell).roundToInt(), cell)
         }
+
+        /** The smallest multiple of [BASE_CELL_METERS] that cuts [extent] into at most [cells] of them. */
+        private fun fitting(extent: Double, cells: Int): Double =
+            ceil(extent / (BASE_CELL_METERS * cells) - EPSILON).coerceAtLeast(1.0) * BASE_CELL_METERS
 
         private const val EPSILON: Double = 1e-9
     }
@@ -133,6 +155,10 @@ public data class GridCell(val column: Int, val row: Int)
 /**
  * What was observed inside one cell (or one half of the course): how often the boat was there, and the
  * wind and boat speed measured while sailing close-hauled through it.
+ *
+ * @property speeds every close-hauled speed measured here, as a histogram. The mean says the square is
+ *   quick; the histogram says whether that is a steady breeze or half puff, half hole, which is the
+ *   difference between a line worth sailing and a line worth the risk.
  */
 public data class CellStats(
     val visits: Int = 0,
@@ -140,6 +166,7 @@ public data class CellStats(
     val windCosSum: Double = 0.0,
     val windSinSum: Double = 0.0,
     val speedSum: Double = 0.0,
+    val speeds: SpeedHistogram = SpeedHistogram(),
 ) {
     /** Circular mean of the wind directions estimated here, or null without upwind samples. */
     public val meanWindDegrees: Double?
@@ -148,13 +175,32 @@ public data class CellStats(
     /** Mean close-hauled boat speed here, or null without upwind samples. */
     public val meanSpeedMps: Double? get() = if (upwindSamples == 0) null else speedSum / upwindSamples
 
+    /**
+     * How much the wind direction wandered here: the circular standard deviation of the samples, in
+     * degrees, or null with fewer than two of them or with samples so scattered that they have no mean
+     * direction at all. This is what the race line's Monte Carlo draws its winds around.
+     */
+    public val windSpreadDegrees: Double?
+        get() {
+            if (upwindSamples < 2) return null
+            val resultant = hypot(windCosSum, windSinSum) / upwindSamples
+            if (resultant < RESULTANT_EPSILON) return null
+            return Angles.toDegrees(sqrt(-2.0 * ln(resultant.coerceAtMost(1.0))))
+        }
+
     public operator fun plus(other: CellStats): CellStats = CellStats(
         visits + other.visits,
         upwindSamples + other.upwindSamples,
         windCosSum + other.windCosSum,
         windSinSum + other.windSinSum,
         speedSum + other.speedSum,
+        speeds + other.speeds,
     )
+
+    private companion object {
+        /** Samples spread evenly around the compass leave a resultant of nothing, and no spread to speak of. */
+        const val RESULTANT_EPSILON: Double = 1e-9
+    }
 }
 
 /**
@@ -180,6 +226,12 @@ public class TrackGrid private constructor(
 
     public val maxVisits: Int get() = cells.maxOf { it.visits }
 
+    /**
+     * Everything measured over the whole racing area, wherever it was measured: the wind distribution a
+     * square knows about before it knows anything about itself, and the one every square falls back on.
+     */
+    public val total: CellStats by lazy { cells.fold(CellStats()) { sum, stats -> sum + stats } }
+
     public val totalVisits: Int get() = cells.sumOf { it.visits }
 
     /** Everything observed in one half of the course. */
@@ -202,6 +254,9 @@ public class TrackGrid private constructor(
             val cosSum = DoubleArray(count)
             val sinSum = DoubleArray(count)
             val speedSum = DoubleArray(count)
+            // The speed bins are filled in place: a track is thousands of points, and a histogram that
+            // copied itself per sample would copy a few hundred thousand bins per second.
+            val speedBins = Array(count) { DoubleArray(SpeedHistogram.BIN_COUNT) }
             for (point in track.points) {
                 val cell = spec.cellOf(frame.toCourse(point.point)) ?: continue
                 val index = spec.index(cell)
@@ -211,9 +266,15 @@ public class TrackGrid private constructor(
                 val radians = Angles.toRadians(wind)
                 cosSum[index] += cos(radians)
                 sinSum[index] += sin(radians)
-                speedSum[index] += point.speedMps ?: 0.0
+                val speed = point.speedMps ?: continue
+                speedSum[index] += speed
+                speedBins[index][SpeedHistogram.binOf(speed)] += 1.0
             }
-            return TrackGrid(spec, axisTarget, Array(count) { CellStats(visits[it], upwind[it], cosSum[it], sinSum[it], speedSum[it]) })
+            return TrackGrid(
+                spec,
+                axisTarget,
+                Array(count) { CellStats(visits[it], upwind[it], cosSum[it], sinSum[it], speedSum[it], SpeedHistogram.fromWeights(speedBins[it])) },
+            )
         }
     }
 }

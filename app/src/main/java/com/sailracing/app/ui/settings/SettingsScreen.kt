@@ -23,25 +23,41 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.sailracing.app.data.AppSettings
+import com.sailracing.app.data.DEFAULT_CELL_SIZE_METERS
+import com.sailracing.app.data.withGrid
+import com.sailracing.app.ui.components.Choice
+import com.sailracing.app.ui.components.ChoiceDialog
+import com.sailracing.app.ui.components.ConfirmDialog
 import com.sailracing.app.ui.components.NumberInputDialog
 import com.sailracing.app.ui.format.Formatters
 import com.sailracing.app.ui.theme.RaceColors
+import com.sailracing.domain.course.GridSettings
 import com.sailracing.domain.race.ApproachSpeed
 import com.sailracing.domain.timer.CuePolicy
+import com.sailracing.simulation.SimulationCatalog
 import java.util.Locale
 
 class SettingsActions(
     val update: ((AppSettings) -> AppSettings) -> Unit,
+    val deleteLogs: () -> Unit = {},
 )
 
-private enum class SettingsDialog { APPROACH_SPEED, TEN_SECOND_WINDOW, SECOND_WINDOW, UPWIND_MAX_TWA, SIM_SPEED }
+private enum class SettingsDialog { APPROACH_SPEED, TEN_SECOND_WINDOW, SECOND_WINDOW, UPWIND_MAX_TWA, CELL_SIZE, SIM_SPEED, SIM_SCENARIO, DELETE_LOGS }
 
 @Composable
-fun SettingsScreen(settings: AppSettings, actions: SettingsActions, modifier: Modifier = Modifier, versionName: String = "") {
+fun SettingsScreen(
+    settings: AppSettings,
+    actions: SettingsActions,
+    modifier: Modifier = Modifier,
+    versionName: String = "",
+    logSummary: String = "",
+    logLocation: String = "",
+) {
     var dialog by rememberSaveable { mutableStateOf<SettingsDialog?>(null) }
     val race = settings.race
     val approach = race.approachSpeed
     val approachManual = approach is ApproachSpeed.Manual
+    val grid = race.course.grid
     val approachSpeedMps = when (approach) {
         is ApproachSpeed.Manual -> approach.speedMps
         is ApproachSpeed.AverageUpwindVmg -> approach.fallbackMps
@@ -115,6 +131,25 @@ fun SettingsScreen(settings: AppSettings, actions: SettingsActions, modifier: Mo
                 testTag = "phoneReversed",
             )
 
+        SectionHeader("Map")
+            SwitchRow(
+                title = "Choose the square size",
+                subtitle = "The racing area follows the track and is cut into about a dozen squares along its longer side. " +
+                    "Switch on to set the size yourself: smaller squares show more of the wind, bigger ones gather more " +
+                    "samples each and plan the race line faster. Nothing measured is lost either way.",
+                checked = grid.cellSizeMeters != null,
+                onCheckedChange = { chosen ->
+                    actions.update { it.withGrid { current -> current.copy(cellSizeMeters = if (chosen) DEFAULT_CELL_SIZE_METERS else null) } }
+                },
+                testTag = "chooseCellSize",
+            )
+            ValueRow(
+                title = "Square size",
+                value = grid.cellSizeMeters?.let(Formatters::meters) ?: "Automatic",
+                onClick = { dialog = SettingsDialog.CELL_SIZE },
+                testTag = "cellSize",
+            )
+
         SectionHeader("Display")
             SwitchRow(
                 title = "Keep the screen on",
@@ -124,13 +159,45 @@ fun SettingsScreen(settings: AppSettings, actions: SettingsActions, modifier: Mo
                 testTag = "keepScreenOn",
             )
 
+        SectionHeader("Logging")
+            SwitchRow(
+                title = "Log every session",
+                subtitle = "Writes everything - the fixes, the compass, every button, the wind the app worked out and " +
+                    "the advice it gave - to a file per session, to go through afterwards. About 2 MB an hour; the " +
+                    "oldest are dropped when 30 sessions are kept.",
+                checked = settings.logSessions,
+                onCheckedChange = { on -> actions.update { it.copy(logSessions = on) } },
+                testTag = "logSessions",
+            )
+            ValueRow(
+                title = "Delete the logs",
+                value = logSummary,
+                onClick = { dialog = SettingsDialog.DELETE_LOGS },
+                testTag = "deleteLogs",
+            )
+            Text(
+                logLocation,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("logLocation"),
+                style = MaterialTheme.typography.bodySmall,
+                color = RaceColors.Muted,
+            )
+
         SectionHeader("Simulation")
             SwitchRow(
                 title = "Simulate a race",
-                subtitle = "Replaces the GPS with a scripted boat sailing a full race around a course",
+                subtitle = "Replaces the GPS with a scripted boat sailing the race chosen below",
                 checked = settings.simulation.enabled,
                 onCheckedChange = { enabled -> actions.update { it.copy(simulation = it.simulation.copy(enabled = enabled)) } },
                 testTag = "simulationEnabled",
+            )
+            ChoiceRow(
+                title = "Which race",
+                value = settings.simulation.scenario.title,
+                subtitle = "Ten practice sessions - five beats and runs around the course, then a start - each in a " +
+                    "wind of its own, to judge the race line against; and the full race. About an hour of sailing " +
+                    "each, so raise the speed below to see one out. Switching starts the new one from a clean sheet.",
+                onClick = { dialog = SettingsDialog.SIM_SCENARIO },
+                testTag = "simulationScenario",
             )
             SwitchRow(
                 title = "Press the buttons automatically",
@@ -210,6 +277,36 @@ fun SettingsScreen(settings: AppSettings, actions: SettingsActions, modifier: Mo
             },
             onDismiss = { dialog = null },
         )
+        SettingsDialog.CELL_SIZE -> NumberInputDialog(
+            title = "Racing area square size",
+            initialValue = grid.cellSizeMeters ?: DEFAULT_CELL_SIZE_METERS,
+            unit = "m",
+            range = GridSettings.CELL_SIZE_RANGE_METERS,
+            smallStep = 5.0,
+            bigStep = 50.0,
+            onConfirm = { meters ->
+                actions.update { it.withGrid { current -> current.copy(cellSizeMeters = meters) } }
+                dialog = null
+            },
+            onDismiss = { dialog = null },
+        )
+        SettingsDialog.DELETE_LOGS -> ConfirmDialog(
+            title = "Delete the logs?",
+            text = "Every logged session on the phone is removed. The race itself is not touched.",
+            confirmText = "Delete",
+            onConfirm = { actions.deleteLogs(); dialog = null },
+            onDismiss = { dialog = null },
+        )
+        SettingsDialog.SIM_SCENARIO -> ChoiceDialog(
+            title = "Which race is simulated",
+            choices = SimulationCatalog.all.map { Choice(it.id, it.title, it.detail) },
+            selectedId = settings.simulation.scenarioId,
+            onSelect = { id ->
+                actions.update { it.copy(simulation = it.simulation.copy(scenarioId = id)) }
+                dialog = null
+            },
+            onDismiss = { dialog = null },
+        )
         SettingsDialog.SIM_SPEED -> NumberInputDialog(
             title = "Simulation speed factor",
             initialValue = settings.simulation.speedFactor,
@@ -253,6 +350,22 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheck
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = RaceColors.Muted)
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange, modifier = Modifier.testTag(testTag))
+    }
+}
+
+/** A row whose value is a line of text rather than a number: it goes under the title, not beside it. */
+@Composable
+private fun ChoiceRow(title: String, value: String, subtitle: String, onClick: () -> Unit, testTag: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .testTag(testTag),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(value, style = MaterialTheme.typography.titleMedium, color = RaceColors.Info)
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = RaceColors.Muted)
     }
 }
 

@@ -1,11 +1,17 @@
 package com.sailracing.app.ui.components
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -141,6 +147,64 @@ fun NumberInputDialog(
         dismissButton = {
             TextButton(onClick = onDismiss, modifier = Modifier.testTag("cancel")) {
                 Text("Cancel", style = MaterialTheme.typography.titleLarge)
+            }
+        },
+    )
+}
+
+/** One of the choices offered by a [ChoiceDialog]. */
+data class Choice(val id: String, val title: String, val detail: String = "")
+
+/**
+ * Pick one of a list, for a setting with more to it than a switch or a number: which simulation to sail.
+ * The list scrolls, and tapping a line chooses it and closes the dialog.
+ */
+@Composable
+fun ChoiceDialog(
+    title: String,
+    choices: List<Choice>,
+    selectedId: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        textContentColor = RaceColors.White,
+        title = { Text(title, style = MaterialTheme.typography.headlineMedium) },
+        text = {
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()).testTag("choices"),
+            ) {
+                choices.forEach { choice ->
+                    val chosen = choice.id == selectedId
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(choice.id) }
+                            .padding(vertical = 8.dp)
+                            .testTag("choice_" + choice.id),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        // The whole row is the target - a gloved finger should not have to find the button.
+                        RadioButton(selected = chosen, onClick = null)
+                        androidx.compose.foundation.layout.Column(modifier = Modifier.padding(start = 8.dp)) {
+                            Text(
+                                choice.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = if (chosen) RaceColors.Info else RaceColors.White,
+                            )
+                            if (choice.detail.isNotBlank()) {
+                                Text(choice.detail, style = MaterialTheme.typography.bodyMedium, color = RaceColors.Muted)
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = RaceColors.Dim)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("cancel")) {
+                Text("Close", style = MaterialTheme.typography.titleLarge)
             }
         },
     )

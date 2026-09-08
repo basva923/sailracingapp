@@ -32,7 +32,20 @@ class BoatPolarTest {
     }
 
     @Test
-    fun `max speed must be positive`() {
+    fun `the polar is scaled by the wind it is sailed in`() {
+        assertEquals(1.0, polar.windSpeedFactor(WindModel.DEFAULT_SPEED_KNOTS), 1e-9)
+        assertEquals(polar.speedMps(90.0), polar.speedMps(90.0, WindModel.DEFAULT_SPEED_KNOTS), 1e-9)
+        // A quarter of the wind is half the boat speed.
+        assertEquals(1.0, polar.speedMps(90.0, 3.0), 1e-9)
+        assertEquals(0.0, polar.windSpeedFactor(0.0), 1e-9)
+        // However hard it blows the boat does not keep gaining.
+        assertEquals(BoatPolar.MAX_WIND_SPEED_FACTOR, polar.windSpeedFactor(40.0), 1e-9)
+        assertEquals(2.0 * BoatPolar.MAX_WIND_SPEED_FACTOR, polar.speedMps(90.0, 40.0), 1e-9)
+    }
+
+    @Test
+    fun `max speed and the reference wind must be positive`() {
         assertFailsWith<IllegalArgumentException> { BoatPolar(maxSpeedMps = 0.0) }
+        assertFailsWith<IllegalArgumentException> { BoatPolar(referenceWindKnots = 0.0) }
     }
 }

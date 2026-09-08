@@ -1,10 +1,11 @@
 package com.sailracing.app.ui.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -12,6 +13,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -19,7 +21,11 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
+import com.sailracing.app.ui.map.MapCameraState
+import com.sailracing.app.ui.map.MapProjection
 import com.sailracing.app.ui.map.MapUiState
+import com.sailracing.app.ui.map.rememberMapCameraState
 import com.sailracing.app.ui.theme.RaceColors
 import com.sailracing.domain.course.CoursePosition
 import com.sailracing.domain.strategy.FavouredSide
@@ -30,26 +36,48 @@ import kotlin.math.sin
 
 /**
  * The drawn map of the racing area, wind up: the area that follows the track, one arrow per cell showing
- * the mean wind there (bright when measured in the cell, dim when estimated from the neighbours; amber
- * veered, blue backed), the start line, the windward mark, the track, the fastest line from the boat to
- * the mark, the boat with its two close-hauled headings (the lifted one bold), a north arrow and a scale.
+ * the mean wind there (solid where it was measured in the cell, faint where it is mostly the day's wind;
+ * amber veered, blue backed), the start line, the windward mark, the track, the race line from the boat to
+ * the mark with the flyer dashed beside it where the two disagree, the boat with its two close-hauled
+ * headings (the lifted one bold), a north arrow and a scale.
  * No real map: the geometry is what matters on the water.
+ *
+ * It fills whatever room it is given, with the racing area scaled to fit it. Pinch to zoom and drag to
+ * pan; a double tap fits the area again. The [camera] is held by the caller so that the view survives a
+ * recomposition, a rotation and the next race line - and so that a pinch, which runs as one coroutine
+ * while the camera changes under it, always builds on where the fingers have got to.
  */
 @Composable
-fun CourseMap(state: MapUiState, modifier: Modifier = Modifier) {
+fun CourseMap(
+    state: MapUiState,
+    modifier: Modifier = Modifier,
+    camera: MapCameraState = rememberMapCameraState(),
+) {
     val textMeasurer = rememberTextMeasurer()
-    Canvas(modifier = modifier.aspectRatio(1f).clipToBounds().testTag("courseMap")) {
+    val view = state.view
+    Canvas(
+        modifier = modifier
+            .clipToBounds()
+            .testTag("courseMap")
+            .pointerInput(view) {
+                detectTransformGestures { centroid, pan, zoom, _ ->
+                    camera.transform(view, size.toSize(), centroid, pan, zoom)
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = { camera.fit() })
+            },
+    ) {
+        // A pane squeezed to nothing (a short landscape screen, or the frame before the first layout)
+        // has no map to draw and no room for its labels.
+        if (size.minDimension < MIN_DRAWABLE_PX) return@Canvas
         val side = min(size.width, size.height)
-        val left = (size.width - side) / 2
-        val top = (size.height - side) / 2
-        val view = state.view
-        val scale = side / view.sideMeters.toFloat()
-        val viewLeftMeters = view.centerAcrossMeters - view.sideMeters / 2
-        val viewTopMeters = view.centerUpwindMeters + view.sideMeters / 2
-        fun toPx(position: CoursePosition) = Offset(
-            left + ((position.acrossMeters - viewLeftMeters) * scale).toFloat(),
-            top + ((viewTopMeters - position.upwindMeters) * scale).toFloat(),
-        )
+        val left = 0f
+        val top = 0f
+        // Read while drawing, so a pinch redraws the map without recomposing the screen around it.
+        val projection = MapProjection.of(view, camera.camera, size)
+        val scale = projection.pixelsPerMeter
+        fun toPx(position: CoursePosition) = projection.toPx(position)
 
         val area = state.area
         val areaTopLeft = toPx(CoursePosition(area.leftMeters, area.topMeters))
@@ -78,7 +106,9 @@ fun CourseMap(state: MapUiState, modifier: Modifier = Modifier) {
                     arrow.shiftDegrees < -SHIFT_COLOUR_THRESHOLD -> RaceColors.Info
                     else -> RaceColors.White
                 }
-                drawWindArrow(centre, arrow.shiftDegrees + 180.0, cellPx * 0.7f, if (arrow.measured) color else color.copy(alpha = 0.35f), if (arrow.measured) 3f else 2f)
+                // How much of this square's wind is its own: a guess is drawn faint, a measurement solid.
+                val alpha = (MIN_ARROW_ALPHA + (1f - MIN_ARROW_ALPHA) * arrow.confidence).toFloat().coerceIn(MIN_ARROW_ALPHA, 1f)
+                drawWindArrow(centre, arrow.shiftDegrees + 180.0, cellPx * 0.7f, color.copy(alpha = alpha), if (arrow.measured) 3f else 2f)
             }
         }
         // The axis from the start to the mark: the split between the two sides.
@@ -88,7 +118,9 @@ fun CourseMap(state: MapUiState, modifier: Modifier = Modifier) {
         drawRect(RaceColors.Dim, areaTopLeft, areaSize, style = Stroke(3f))
 
         drawPolyline(state.track, ::toPx, RaceColors.Info.copy(alpha = 0.8f), 3f)
-        drawPolyline(state.route, ::toPx, RaceColors.Early, 5f)
+        // The flyer under the line to sail, dashed: it is only there when the two disagree.
+        drawPolyline(state.riskyLine, ::toPx, RaceColors.Warning, 3f, dashed = true)
+        drawPolyline(state.raceLine, ::toPx, RaceColors.Early, 5f)
 
         val pin = state.pinEnd?.let(::toPx)
         val boatEnd = state.boatEnd?.let(::toPx)
@@ -111,10 +143,10 @@ fun CourseMap(state: MapUiState, modifier: Modifier = Modifier) {
         val highlighted = label.copy(color = RaceColors.Early)
         drawText(textMeasurer, "LEFT", Offset(left + 8f, top + 8f), if (state.favouredSide == FavouredSide.LEFT) highlighted else label)
         val rightWidth = textMeasurer.measure("RIGHT", label).size.width
-        drawText(textMeasurer, "RIGHT", Offset(left + side - rightWidth - 8f, top + 8f), if (state.favouredSide == FavouredSide.RIGHT) highlighted else label)
-        drawNorth(Offset(left + side - side * 0.1f, top + side - side * 0.12f), state.northDegrees, side * 0.05f, textMeasurer)
-        // Scale bar: one cell.
-        val barY = top + side - 12f
+        drawText(textMeasurer, "RIGHT", Offset(size.width - rightWidth - 8f, top + 8f), if (state.favouredSide == FavouredSide.RIGHT) highlighted else label)
+        drawNorth(Offset(size.width - side * 0.1f, size.height - side * 0.12f), state.northDegrees, side * 0.05f, textMeasurer)
+        // Scale bar: one cell of the racing area, however far the map has been zoomed in.
+        val barY = size.height - 12f
         drawLine(RaceColors.White, Offset(left + 8f, barY), Offset(left + 8f + cellPx, barY), 4f)
     }
 }
@@ -122,17 +154,30 @@ fun CourseMap(state: MapUiState, modifier: Modifier = Modifier) {
 /** Arrows shifted less than this from the mean are drawn neutral. */
 private const val SHIFT_COLOUR_THRESHOLD = 1.5
 
+/** Below this the map has no room for anything at all, not even its corner labels. */
+private const val MIN_DRAWABLE_PX = 48f
+
 /** Cells smaller than this on screen get no arrow: it would be an unreadable smudge. */
 private const val MIN_ARROW_CELL_PX = 14f
 
-private fun DrawScope.drawPolyline(positions: List<CoursePosition>, toPx: (CoursePosition) -> Offset, color: Color, width: Float) {
+/** How faint the arrow of a square that knows nothing of its own is drawn. */
+private const val MIN_ARROW_ALPHA = 0.25f
+
+private fun DrawScope.drawPolyline(
+    positions: List<CoursePosition>,
+    toPx: (CoursePosition) -> Offset,
+    color: Color,
+    width: Float,
+    dashed: Boolean = false,
+) {
     if (positions.size < 2) return
     val path = Path()
     positions.forEachIndexed { index, position ->
         val point = toPx(position)
         if (index == 0) path.moveTo(point.x, point.y) else path.lineTo(point.x, point.y)
     }
-    drawPath(path, color, style = Stroke(width = width))
+    val effect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(14f, 10f)) else null
+    drawPath(path, color, style = Stroke(width = width, pathEffect = effect))
 }
 
 private fun DrawScope.drawMark(at: Offset, text: String, textMeasurer: TextMeasurer, color: Color) {

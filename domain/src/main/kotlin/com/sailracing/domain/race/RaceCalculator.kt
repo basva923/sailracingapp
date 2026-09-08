@@ -8,7 +8,9 @@ import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.startline.StartLineCalculator
 import com.sailracing.domain.strategy.UpwindStrategy
 import com.sailracing.domain.timer.CountdownTimer
+import com.sailracing.domain.wind.WindHistory
 import com.sailracing.domain.wind.WindMath
+import kotlin.math.abs
 
 /**
  * Derives the displayable [RaceSnapshot] from a [RaceState] at a given moment. Pure: the same state and
@@ -41,6 +43,9 @@ public object RaceCalculator {
         val target = sailing?.let { WindMath.targetHeading(windSettings, it, referenceDegrees) }
         val speed = fix?.speedMps
 
+        // The race line is planned from the tack the boat is on and the wind it is measuring right now, so
+        // both only count while it is actually beating: a reaching boat's heading says nothing about the wind.
+        val beating = sailing != null && abs(sailing.trueWindAngleDegrees) <= state.settings.upwindMaxTwaDegrees
         val course = courseOrigin(state.startLine, state.track.points.firstOrNull()?.point ?: fix?.point)?.let { origin ->
             val inputs = CourseInputs(
                 frame = CourseFrame(origin, referenceDegrees),
@@ -48,9 +53,11 @@ public object RaceCalculator {
                 windwardMark = state.windwardMark,
                 boat = fix?.point,
                 tackAngleDegrees = windSettings.tackAngleDegrees,
-                downwindAngleDegrees = windSettings.downwindAngleDegrees,
+                currentTack = if (beating) sailing!!.tack else null,
+                currentWindDegrees = if (beating) currentWindDegrees(state.wind.history) else null,
+                settings = state.settings.course,
             )
-            previous?.course?.takeIf { it.isFor(state.track, inputs) } ?: CourseModel.build(state.track, inputs)
+            previous?.course?.takeIf { it.isFor(state.track, inputs) } ?: CourseModel.build(state.track, inputs, previous?.course)
         }
         val plan = UpwindStrategy.plan(
             windReference = reference,
@@ -118,4 +125,15 @@ public object RaceCalculator {
 
     /** Fewer samples than this and the measured VMG is too noisy to trust for the start. */
     public const val MIN_VMG_SAMPLES: Int = 30
+
+    /**
+     * The wind the race line starts from: the mean of the last [CURRENT_WIND_SAMPLES] close-hauled
+     * estimates, or null when the boat has not been beating. One sample is a wave and a wobble of the
+     * helm; half a minute of them is the shift the boat is actually in.
+     */
+    public fun currentWindDegrees(history: WindHistory, samples: Int = CURRENT_WIND_SAMPLES): Double? =
+        history.recentUpwindMeanDegrees(samples)
+
+    /** How many close-hauled samples the wind of the moment is averaged over: about half a minute of them. */
+    public const val CURRENT_WIND_SAMPLES: Int = 30
 }
