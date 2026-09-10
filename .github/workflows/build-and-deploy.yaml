@@ -20,7 +20,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit tests and coverage gates (domain, simulation, app)
+      - name: Unit tests and coverage gates (domain, simulation, desktop, app)
         run: ./gradlew check koverVerify --console=plain
 
       - name: Coverage report

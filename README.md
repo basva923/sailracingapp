@@ -79,6 +79,7 @@ See [Design.md](Design.md) for the original feature design.
 | --- | --- | --- |
 | `domain` | Pure Kotlin race logic: geo math, start line, countdown and cues, wind estimation and statistics with the `WindReference`, the `CourseModel` (the track-following area, its grid, the interpolated `WindField` of wind and speed distributions, and the `RaceLinePlanner`'s Monte Carlo over the `RaceLineFinder`), the `UpwindStrategy` (tack advice and favoured side), the `RaceReducer` state machine and the `RaceCalculator` that derives everything shown. No Android dependency. | JUnit 5, 100 % line coverage enforced by Kover |
 | `simulation` | Deterministic boat, wind and course simulator, `StandardRaceScenario` (a scripted full race that emits GPS fixes and the sailor's button presses), `PracticeScenario` (five windward-leeward laps and then a start) and the `SimulationCatalog` of eleven simulations the app can load. | JUnit 5, 100 % line coverage enforced; `FullRaceEndToEndTest` drives the real engine through the race and checks every feature against ground truth |
+| `desktop` | The **strategy workbench** for the PC: draw a course by hand, set the wind and ask for the route to the windward mark, through the same `:domain` code the phone runs. Swing, so there is nothing to install ([docs/WORKBENCH.md](docs/WORKBENCH.md)). | JUnit 5, 100 % line coverage of everything but the window itself, and the shipped example courses are opened and planned by a test |
 | `app` | The Android app: sensors, DataStore persistence, `RaceSession` (engine + sensors + ticker + persistence + session log), the foreground service and the Compose UI. | JUnit 4 + Robolectric + Compose UI tests, including a full simulated race through the session in virtual time |
 
 Architecture in one line: sensors and the clock produce `RaceEvent`s, the pure `RaceReducer` folds them
@@ -95,6 +96,7 @@ Requirements: JDK 17+ (the build runs on JDK 21 and targets 17), Android SDK 35.
 ./gradlew koverHtmlReport       # merged coverage report in build/reports/kover/html
 ./gradlew :app:assembleDebug    # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :app:installDebug     # install on a connected device or emulator
+./gradlew :desktop:run          # the strategy workbench on the PC
 ```
 
 ## Trying it without a boat
@@ -113,6 +115,18 @@ has been measured by the time it beats up for the last time. Each is a different
 title; raise the simulation speed to 10× or 20× to see one out in a few minutes. Switching to another one
 clears the session by itself. [docs/SIMULATIONS.md](docs/SIMULATIONS.md) lists the ten and what the race
 line should make of each.
+
+## Trying a course that never happened
+
+`./gradlew :desktop:run` opens the **strategy workbench**: a chart to draw on. Lay a start line and a
+windward mark, set the wind, drag a track up the beat, and the green race line and the amber flyer appear
+on it with the same sentences the phone would show - because it is the same code, fed the GPS fixes a boat
+sailing your drawing would have produced.
+
+There is no tool for putting a shift on one side of the course, and none is needed: the app reads the wind
+off the boat's own heading, so a leg drawn at another angle *is* a wind that shifted, and a leg drawn
+slower *is* a hole. Courses are saved as text you can keep beside a test; two worked examples ship in
+`desktop/courses`. [docs/WORKBENCH.md](docs/WORKBENCH.md) has the rest.
 
 ## Conventions
 

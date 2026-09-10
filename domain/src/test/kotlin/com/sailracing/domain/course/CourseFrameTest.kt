@@ -2,6 +2,7 @@ package com.sailracing.domain.course
 
 import com.sailracing.domain.geo.Geo
 import com.sailracing.domain.geo.GeoPoint
+import com.sailracing.domain.geo.PlanePosition
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -55,4 +56,22 @@ class CourseFrameTest {
         assertEquals(-179.999, back.longitude, 1e-6)
         assertEquals(90.0, frame.toGeo(CoursePosition(0.0, 1e9)).latitude)
     }
+
+    @Test
+    fun `the frame is the north-up plane turned into the wind`() {
+        val frame = CourseFrame(origin, windDirectionDegrees = 90.0)
+        // 200 m east is straight upwind in an east wind, and 50 m north is 50 m to the left of it.
+        assertEquals(CoursePosition(0.0, 200.0), frame.fromPlane(PlanePosition(200.0, 0.0)).rounded())
+        assertEquals(CoursePosition(-50.0, 0.0), frame.fromPlane(PlanePosition(0.0, 50.0)).rounded())
+        // And back the other way, which is what carries a race line onto a chart.
+        assertEquals(PlanePosition(200.0, 0.0), frame.toPlane(CoursePosition(0.0, 200.0)).rounded())
+        assertEquals(PlanePosition(0.0, 50.0), frame.toPlane(CoursePosition(-50.0, 0.0)).rounded())
+        // The plane it is a rotation of is the plane around its own origin.
+        assertEquals(origin, frame.plane.origin)
+        assertEquals(frame.toCourse(origin), frame.fromPlane(frame.plane.toPlane(origin)))
+    }
+
+    private fun CoursePosition.rounded() = CoursePosition(Math.round(acrossMeters).toDouble(), Math.round(upwindMeters).toDouble())
+
+    private fun PlanePosition.rounded() = PlanePosition(Math.round(eastMeters).toDouble(), Math.round(northMeters).toDouble())
 }

@@ -12,4 +12,5 @@ dependencies {
     kover(project(":domain"))
     kover(project(":simulation"))
     kover(project(":app"))
+    kover(project(":desktop"))
 }

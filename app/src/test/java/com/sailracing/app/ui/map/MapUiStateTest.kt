@@ -1,9 +1,5 @@
 package com.sailracing.app.ui.map
 
-import com.sailracing.domain.course.CoursePosition
-import com.sailracing.domain.course.LineRisk
-import com.sailracing.domain.course.RaceLine
-import com.sailracing.domain.course.RaceLinePlan
 import com.sailracing.domain.geo.Geo
 import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.model.PositionFix
@@ -111,15 +107,6 @@ class MapUiStateTest {
         assertEquals(240.0, area.topMeters)
         assertEquals(MapUiState.view(area), state.view)
         assertTrue(state.scaleText.startsWith("Area 120 m ×") && state.scaleText.endsWith("20 m squares"), state.scaleText)
-        // A size the sailor chose is honoured, and the map says so when the area was too big to keep it.
-        assertEquals(
-            "Area 120 m × 240 m, wind up · 20 m squares",
-            MapUiState.scaleText(MapArea(-60.0, 0.0, 120.0, 240.0, 20.0), chosenCellMeters = 20.0),
-        )
-        assertEquals(
-            "Area 120 m × 240 m, wind up · 20 m squares, enlarged from 10 m to fit",
-            MapUiState.scaleText(MapArea(-60.0, 0.0, 120.0, 240.0, 20.0), chosenCellMeters = 10.0),
-        )
         // One arrow per cell; only the cell the boat sat in is measured, at the mean wind.
         assertEquals((area.widthMeters / 20).toInt() * (area.heightMeters / 20).toInt(), state.arrows.size)
         val measured = state.arrows.single { it.measured }
@@ -140,36 +127,6 @@ class MapUiStateTest {
         assertTrue(state.canSetMarkFromLine)
 
         assertEquals("4 points · 0 min", state.trackText)
-    }
-
-    @Test
-    fun theRaceLineTextCountsTheTacksAndTheTimeToTheMark() {
-        assertEquals("", MapUiState.raceLineText(RaceLinePlan.NONE))
-        assertEquals("", MapUiState.riskText(RaceLinePlan.NONE))
-        val points = listOf(CoursePosition(0.0, 0.0), CoursePosition(50.0, 50.0))
-        fun plan(line: RaceLine, bad: Double) = RaceLinePlan(safe = line, safeRisk = LineRisk(line.seconds, line.seconds, bad, 1.0), fast = line, runs = 16)
-        assertEquals(
-            "Race line: no tack · 01:00 to the mark, 01:10 on a bad day",
-            MapUiState.raceLineText(plan(RaceLine(points, 60.0, 0), bad = 70.0)),
-        )
-        assertEquals("Race line: 1 tack · 02:05 to the mark, 02:30 on a bad day", MapUiState.raceLineText(plan(RaceLine(points, 125.0, 1), 150.0)))
-        assertEquals("Race line: 3 tacks · 00:30 to the mark, 00:44 on a bad day", MapUiState.raceLineText(plan(RaceLine(points, 30.0, 3), 44.0)))
-    }
-
-    @Test
-    fun theRiskTextSaysWhatTheFlyerIsWorth() {
-        val safe = RaceLine(listOf(CoursePosition(0.0, 0.0), CoursePosition(50.0, 50.0)), 120.0, 2)
-        val fast = RaceLine(listOf(CoursePosition(0.0, 0.0), CoursePosition(-50.0, 50.0)), 115.0, 1)
-        // The same line twice: there is nothing to gamble on, and nothing is drawn beside the race line.
-        val settled = RaceLinePlan(safe = safe, safeRisk = LineRisk(120.0, 115.0, 126.0, 4.0), fast = safe, runs = 16)
-        assertEquals("No flyer: the same line is the fastest of the 16 winds simulated", MapUiState.riskText(settled))
-        assertTrue(settled.agree)
-
-        val gamble = settled.copy(fast = fast, fastRisk = LineRisk(115.0, 95.0, 150.0, 20.0), winFraction = 0.375)
-        assertEquals(
-            "Flyer: 1 tack · 01:55, 01:35 at best · beats the race line in 6 of 16 winds",
-            MapUiState.riskText(gamble),
-        )
     }
 
     @Test

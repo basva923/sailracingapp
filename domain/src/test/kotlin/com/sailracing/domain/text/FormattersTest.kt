@@ -1,6 +1,6 @@
-package com.sailracing.app.ui.format
+package com.sailracing.domain.text
 
-import org.junit.Test
+import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class FormattersTest {
@@ -25,6 +25,9 @@ class FormattersTest {
         assertEquals("13:07", Formatters.timeOfDay((13 * 3600 + 7 * 60) * 1000L, zoneOffsetMillis = 0))
         assertEquals("14:07", Formatters.timeOfDay((13 * 3600 + 7 * 60) * 1000L, zoneOffsetMillis = 3_600_000))
         assertEquals("23:30", Formatters.timeOfDay(0, zoneOffsetMillis = -30 * 60_000))
+        // Without one it is the machine's own zone, whatever the machine happens to be set to.
+        val here = java.util.TimeZone.getDefault().getOffset(1_700_000_000_000)
+        assertEquals(Formatters.timeOfDay(1_700_000_000_000, zoneOffsetMillis = here), Formatters.timeOfDay(1_700_000_000_000))
     }
 
     @Test

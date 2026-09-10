@@ -37,6 +37,20 @@
   flyer to gamble on (see [RACE_LINE.md](RACE_LINE.md)).
   `strategy.UpwindStrategy` turns the reference, the histogram, the history and the grid into an `UpwindPlan`:
   which tack is lifted, and which side of the course pays.
+- **domain** also holds the words and the drawn course. `text.Formatters`, `text.PlanText` and
+  `text.CourseText` are the sentences every screen shows - the phone's and the workbench's - so the two
+  cannot drift apart. `geo.LocalPlane` is the one place the earth is flattened: a north-up metre grid,
+  which `course.CourseFrame` is a rotation of into the wind. `sketch.CourseSketch` is a course drawn by
+  hand on that plane (a line, a mark, a wind and a track); `sketch.SketchReplay` turns it into the GPS
+  fixes a boat sailing it would have produced and `sketch.SketchAnalysis` runs those through a real
+  `RaceEngine`, so a drawn course reaches the strategy through the app's own front door and comes back as
+  the same `RaceSnapshot` the Race screen is drawn from. `sketch.CourseSketchFormat` keeps one as text
+  ([WORKBENCH.md](WORKBENCH.md)).
+- **desktop** (`com.sailracing.desktop`) is the strategy workbench: a Swing window for the PC that draws a
+  course and asks `SketchAnalysis` for the route up the beat. `workbench.Workbench` is the editing as a
+  value (a gesture in, a course out), `workbench.Viewport` is metres to pixels with the pan, zoom and fit,
+  `workbench.Report` is the words - all of them out of `domain.text` - and `ui` is the window itself. It
+  holds no race logic at all ([WORKBENCH.md](WORKBENCH.md)).
 - **app** wires the domain to Android:
   - `RaceSession` owns the engine, serialises all events on one dispatcher, ticks the clock, plays effects and
     persists changes (line, mark, wind, timer). It is started and ended by the sailor from the Session screen
@@ -114,3 +128,6 @@
 - New derived value: add it to `RaceSnapshot` in `RaceCalculator` and to the relevant UI state.
 - New scenario: compose `Leg`s with helms and terminations; run it with `ScenarioRunner`. A new simulation to
   load in the app is one entry in `SimulationCatalog` ([SIMULATIONS.md](SIMULATIONS.md)).
+- New course to try the strategy on: draw it in the workbench (`./gradlew :desktop:run`) and save it beside
+  the others in `desktop/courses`, where `ExampleCoursesTest` opens and plans every one of them.
+- New sentence on a screen: put it in `domain.text` if both the phone and the workbench should say it.

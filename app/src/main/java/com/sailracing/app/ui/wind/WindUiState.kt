@@ -1,11 +1,11 @@
 package com.sailracing.app.ui.wind
 
-import com.sailracing.app.ui.format.Formatters
-import com.sailracing.app.ui.plan.PlanText
 import com.sailracing.domain.geo.Angles
 import com.sailracing.domain.race.HeadingSource
 import com.sailracing.domain.race.RaceSnapshot
 import com.sailracing.domain.strategy.TackAdvice
+import com.sailracing.domain.text.Formatters
+import com.sailracing.domain.text.PlanText
 import com.sailracing.domain.timer.RacePhase
 import com.sailracing.domain.wind.HistogramBin
 import com.sailracing.domain.wind.PointOfSail

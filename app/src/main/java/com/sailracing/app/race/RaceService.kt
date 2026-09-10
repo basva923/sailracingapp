@@ -15,8 +15,8 @@ import androidx.core.content.ContextCompat
 import com.sailracing.app.MainActivity
 import com.sailracing.app.R
 import com.sailracing.app.di.appGraph
-import com.sailracing.app.ui.format.Formatters
 import com.sailracing.domain.race.RaceSnapshot
+import com.sailracing.domain.text.Formatters
 import com.sailracing.domain.timer.RacePhase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

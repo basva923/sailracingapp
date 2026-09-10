@@ -1,12 +1,12 @@
 package com.sailracing.app.ui.session
 
-import com.sailracing.app.ui.format.Formatters
 import com.sailracing.domain.geo.Geo
 import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.model.PositionFix
 import com.sailracing.domain.race.RaceEngine
 import com.sailracing.domain.race.RaceEvent
 import com.sailracing.domain.startline.StartLine
+import com.sailracing.domain.text.Formatters
 import com.sailracing.domain.timer.TimerState
 import org.junit.Test
 import kotlin.test.assertEquals

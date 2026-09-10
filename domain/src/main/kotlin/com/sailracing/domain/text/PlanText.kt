@@ -1,6 +1,5 @@
-package com.sailracing.app.ui.plan
+package com.sailracing.domain.text
 
-import com.sailracing.app.ui.format.Formatters
 import com.sailracing.domain.strategy.FavouredSide
 import com.sailracing.domain.strategy.TackAdvice
 import com.sailracing.domain.strategy.UpwindPlan
@@ -9,17 +8,17 @@ import com.sailracing.domain.wind.Tack
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** Words for the [UpwindPlan], shared by the wind and map screens. */
-object PlanText {
+/** Words for the [UpwindPlan], shared by the wind and map screens and by the workbench. */
+public object PlanText {
 
-    fun tackTitle(plan: UpwindPlan): String = when (plan.tackAdvice) {
+    public fun tackTitle(plan: UpwindPlan): String = when (plan.tackAdvice) {
         TackAdvice.HOLD -> "HOLD"
         TackAdvice.TACK -> if (plan.pointOfSail == PointOfSail.DOWNWIND) "GYBE" else "TACK"
         TackAdvice.EITHER -> if (plan.pointOfSail == PointOfSail.DOWNWIND) "EITHER GYBE" else "EITHER TACK"
         TackAdvice.UNKNOWN -> "—"
     }
 
-    fun tackDetail(plan: UpwindPlan): String {
+    public fun tackDetail(plan: UpwindPlan): String {
         val reference = if (plan.referenceIsMeasured) "the mean wind" else "the set wind"
         val shift = plan.shiftFromReferenceDegrees?.let { "${abs(it).roundToInt()}°" }
         return when (plan.tackAdvice) {
@@ -33,14 +32,14 @@ object PlanText {
         }
     }
 
-    fun sideTitle(plan: UpwindPlan): String = when (plan.favouredSide) {
+    public fun sideTitle(plan: UpwindPlan): String = when (plan.favouredSide) {
         FavouredSide.LEFT -> "GO LEFT"
         FavouredSide.RIGHT -> "GO RIGHT"
         FavouredSide.EVEN -> "SIDES EVEN"
         FavouredSide.UNKNOWN -> "SIDES UNKNOWN"
     }
 
-    fun sideDetail(plan: UpwindPlan): String {
+    public fun sideDetail(plan: UpwindPlan): String {
         val parts = mutableListOf<String>()
         plan.sides.windDifferenceDegrees?.let { parts += "right side wind ${Formatters.signedDegrees(it)}" }
         plan.sides.speedDifferenceMps?.let { parts += "speed ${Formatters.signedKnots(it)}" }

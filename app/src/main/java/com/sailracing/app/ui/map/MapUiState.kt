@@ -1,16 +1,14 @@
 package com.sailracing.app.ui.map
 
-import com.sailracing.app.ui.format.Formatters
-import com.sailracing.app.ui.plan.PlanText
 import com.sailracing.domain.course.CoursePosition
-import com.sailracing.domain.course.RaceLine
-import com.sailracing.domain.course.RaceLinePlan
 import com.sailracing.domain.geo.Geo
 import com.sailracing.domain.race.RaceSnapshot
 import com.sailracing.domain.strategy.FavouredSide
+import com.sailracing.domain.text.CourseText
+import com.sailracing.domain.text.Formatters
+import com.sailracing.domain.text.PlanText
 import com.sailracing.domain.wind.Tack
 import kotlin.math.max
-import kotlin.math.roundToInt
 
 /**
  * One cell's wind arrow as drawn.
@@ -126,8 +124,8 @@ data class MapUiState(
                 track = course.trackPositions,
                 raceLine = course.racePlan.safe.points,
                 riskyLine = if (course.racePlan.agree) emptyList() else course.racePlan.fast.points,
-                raceLineText = raceLineText(course.racePlan),
-                riskText = riskText(course.racePlan),
+                raceLineText = CourseText.raceLine(course.racePlan),
+                riskText = CourseText.flyer(course.racePlan),
                 pinEnd = course.pinEnd,
                 boatEnd = course.boatEnd,
                 boat = course.boat,
@@ -137,51 +135,16 @@ data class MapUiState(
                 northDegrees = frame.toCourseBearing(0.0),
                 starboardHeadingDegrees = frame.toCourseBearing(snapshot.targetHeadings.starboardUpwind),
                 portHeadingDegrees = frame.toCourseBearing(snapshot.targetHeadings.portUpwind),
-                scaleText = scaleText(area, course.inputs.settings.grid.cellSizeMeters),
+                scaleText = CourseText.area(
+                    area.widthMeters,
+                    area.heightMeters,
+                    area.cellMeters,
+                    course.inputs.settings.grid.cellSizeMeters,
+                ),
                 markText = markText,
                 canSetMarkFromLine = true,
             )
         }
-
-        /**
-         * "Area 240 m × 600 m, wind up · 50 m squares": how big the racing area is and how finely it is
-         * cut up, saying so when the size the sailor chose had to be enlarged to keep the area searchable.
-         */
-        fun scaleText(area: MapArea, chosenCellMeters: Double?): String {
-            val squares = if (chosenCellMeters != null && chosenCellMeters < area.cellMeters) {
-                "${Formatters.meters(area.cellMeters)} squares, enlarged from ${Formatters.meters(chosenCellMeters)} to fit"
-            } else {
-                "${Formatters.meters(area.cellMeters)} squares"
-            }
-            return "Area ${Formatters.meters(area.widthMeters)} × ${Formatters.meters(area.heightMeters)}, wind up · $squares"
-        }
-
-        /** "Race line: 2 tacks · 04:37 to the mark, 05:02 on a bad day": what the drawn line costs. */
-        fun raceLineText(plan: RaceLinePlan): String {
-            if (plan.isEmpty) return ""
-            val line = plan.safe
-            return "Race line: ${tacks(line)} · ${time(line.seconds)} to the mark, ${time(plan.safeRisk.badSeconds)} on a bad day"
-        }
-
-        /**
-         * What the flyer is worth: the line that pays most when the wind is kind, and how often it did over
-         * the simulated winds - or that there is no gamble to take, when the safe line is the fast one too.
-         */
-        fun riskText(plan: RaceLinePlan): String {
-            if (plan.isEmpty) return ""
-            if (plan.agree) return "No flyer: the same line is the fastest of the ${plan.runs} winds simulated"
-            val wins = (plan.winFraction * plan.runs).roundToInt()
-            return "Flyer: ${tacks(plan.fast)} · ${time(plan.fastRisk.meanSeconds)}, " +
-                "${time(plan.fastRisk.goodSeconds)} at best · beats the race line in $wins of ${plan.runs} winds"
-        }
-
-        private fun tacks(line: RaceLine): String = when (line.tacks) {
-            0 -> "no tack"
-            1 -> "1 tack"
-            else -> "${line.tacks} tacks"
-        }
-
-        private fun time(seconds: Double): String = Formatters.countdown((seconds * 1000).toLong())
 
         /**
          * The area with a margin around it, and nothing else: the map scales that to the room it has, so

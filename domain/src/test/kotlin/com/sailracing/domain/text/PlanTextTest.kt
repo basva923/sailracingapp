@@ -1,4 +1,4 @@
-package com.sailracing.app.ui.plan
+package com.sailracing.domain.text
 
 import com.sailracing.domain.strategy.FavouredSide
 import com.sailracing.domain.strategy.SideComparison
@@ -6,7 +6,7 @@ import com.sailracing.domain.strategy.TackAdvice
 import com.sailracing.domain.strategy.UpwindPlan
 import com.sailracing.domain.wind.PointOfSail
 import com.sailracing.domain.wind.Tack
-import org.junit.Test
+import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class PlanTextTest {

@@ -1,8 +1,9 @@
 package com.sailracing.domain.course
 
 import com.sailracing.domain.geo.Angles
-import com.sailracing.domain.geo.Geo
 import com.sailracing.domain.geo.GeoPoint
+import com.sailracing.domain.geo.LocalPlane
+import com.sailracing.domain.geo.PlanePosition
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -15,30 +16,35 @@ public data class CoursePosition(val acrossMeters: Double, val upwindMeters: Dou
 /**
  * A flat, wind-up frame over the racing area. The origin is the reference point (normally the middle of
  * the start line), the upwind axis points into the wind and the across axis to the right when looking
- * upwind. An equirectangular projection is exact to well under a metre at race-course scale.
+ * upwind.
+ *
+ * It is a [LocalPlane] - the same water, north up - turned into the wind, and nothing more: setting
+ * another reference wind turns the frame, not the water. That is why the track and the marks are kept on
+ * the plane and only ever brought into a frame to be worked with.
  */
 public data class CourseFrame(val origin: GeoPoint, val windDirectionDegrees: Double) {
 
-    private val cosLatitude = cos(Angles.toRadians(origin.latitude))
+    /** The water this frame is a rotation of: metres east and north of [origin]. */
+    public val plane: LocalPlane = LocalPlane(origin)
+
     private val cosWind = cos(Angles.toRadians(windDirectionDegrees))
     private val sinWind = sin(Angles.toRadians(windDirectionDegrees))
 
-    public fun toCourse(point: GeoPoint): CoursePosition {
-        val north = Angles.toRadians(point.latitude - origin.latitude) * Geo.EARTH_RADIUS_METERS
-        val east = Angles.toRadians(Angles.signedDifference(origin.longitude, point.longitude)) * Geo.EARTH_RADIUS_METERS * cosLatitude
-        return CoursePosition(
-            acrossMeters = east * cosWind - north * sinWind,
-            upwindMeters = north * cosWind + east * sinWind,
-        )
-    }
+    public fun toCourse(point: GeoPoint): CoursePosition = fromPlane(plane.toPlane(point))
 
-    public fun toGeo(position: CoursePosition): GeoPoint {
-        val east = position.acrossMeters * cosWind + position.upwindMeters * sinWind
-        val north = position.upwindMeters * cosWind - position.acrossMeters * sinWind
-        val latitude = origin.latitude + Angles.toDegrees(north / Geo.EARTH_RADIUS_METERS)
-        val longitude = origin.longitude + Angles.toDegrees(east / (Geo.EARTH_RADIUS_METERS * cosLatitude))
-        return GeoPoint(latitude.coerceIn(-90.0, 90.0), Angles.normalize(longitude + 180.0) - 180.0)
-    }
+    public fun toGeo(position: CoursePosition): GeoPoint = plane.toGeo(toPlane(position))
+
+    /** A north-up position turned into this frame. */
+    public fun fromPlane(position: PlanePosition): CoursePosition = CoursePosition(
+        acrossMeters = position.eastMeters * cosWind - position.northMeters * sinWind,
+        upwindMeters = position.northMeters * cosWind + position.eastMeters * sinWind,
+    )
+
+    /** A position in this frame turned back onto the north-up plane. */
+    public fun toPlane(position: CoursePosition): PlanePosition = PlanePosition(
+        eastMeters = position.acrossMeters * cosWind + position.upwindMeters * sinWind,
+        northMeters = position.upwindMeters * cosWind - position.acrossMeters * sinWind,
+    )
 
     /** A compass bearing expressed in the frame: 0 = straight upwind, 90 = to the right. */
     public fun toCourseBearing(bearingDegrees: Double): Double = Angles.normalize(bearingDegrees - windDirectionDegrees)

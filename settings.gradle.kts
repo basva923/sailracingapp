@@ -25,3 +25,4 @@ rootProject.name = "sailracingapp"
 include(":domain")
 include(":simulation")
 include(":app")
+include(":desktop")

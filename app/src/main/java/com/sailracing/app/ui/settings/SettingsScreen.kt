@@ -29,10 +29,10 @@ import com.sailracing.app.ui.components.Choice
 import com.sailracing.app.ui.components.ChoiceDialog
 import com.sailracing.app.ui.components.ConfirmDialog
 import com.sailracing.app.ui.components.NumberInputDialog
-import com.sailracing.app.ui.format.Formatters
 import com.sailracing.app.ui.theme.RaceColors
 import com.sailracing.domain.course.GridSettings
 import com.sailracing.domain.race.ApproachSpeed
+import com.sailracing.domain.text.Formatters
 import com.sailracing.domain.timer.CuePolicy
 import com.sailracing.simulation.SimulationCatalog
 import java.util.Locale

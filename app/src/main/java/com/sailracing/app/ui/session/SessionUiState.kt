@@ -1,7 +1,7 @@
 package com.sailracing.app.ui.session
 
-import com.sailracing.app.ui.format.Formatters
 import com.sailracing.domain.race.RaceSnapshot
+import com.sailracing.domain.text.Formatters
 import com.sailracing.domain.timer.RacePhase
 
 /** The three states the Session screen distinguishes. */
