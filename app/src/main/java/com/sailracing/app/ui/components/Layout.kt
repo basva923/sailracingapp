@@ -2,6 +2,7 @@ package com.sailracing.app.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -72,22 +73,20 @@ fun AdaptivePanes(
 }
 
 /**
- * The racing screen's shape: the map first, then everything else under it (or beside it, with the phone
- * on its side). The map keeps its room whatever the panel does - it is what the sailor looks at while
- * beating - and the panel scrolls under it for the numbers, the wind and the settings.
+ * The racing screen's shape: what is looked at while beating, and nothing that scrolls.
  *
- * Upright, the map is given the height it can use rather than a fixed slice of the screen: a beat three
- * times as tall as it is wide is drawn three times bigger in a tall pane, while a square racing area
- * would only get black bands from one, and the panel can have that room instead.
- *
- * @param mapShape how many times taller than wide the water the map draws is.
+ * [main] is the map - or, when the sailor asks for more, the details in its place - and [pinned] the
+ * glance panel that stays on the screen whatever [main] does: the advice, the side, the speed and the
+ * shift, sized to the room they have rather than to what is written in them. Upright, the panel takes
+ * the bottom of the screen ([PINNED_FRACTION] of it, at most [MAX_PINNED_HEIGHT]) and the map the rest;
+ * with the phone on its side the map takes the left half and the panel the right, the whole height.
+ * Nothing on the screen scrolls, so the helm never finds it left half way down a list.
  */
 @Composable
-fun MapAndPanel(
+fun GlanceLayout(
     modifier: Modifier = Modifier,
-    mapShape: Float = 1f,
-    map: @Composable () -> Unit,
-    panel: @Composable ColumnScope.(PaneSize) -> Unit,
+    main: @Composable BoxScope.(PaneSize) -> Unit,
+    pinned: @Composable ColumnScope.(PaneSize) -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val width = maxWidth
@@ -95,35 +94,33 @@ fun MapAndPanel(
         if (width > height) {
             val pane = PaneSize(width / 2 - PanePadding * 2, height - PanePadding * 2)
             Row(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(PanePadding)) { map() }
+                Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(PanePadding)) { main(pane) }
                 Column(
-                    modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(PanePadding),
-                    verticalArrangement = Arrangement.spacedBy(PanePadding),
-                ) { panel(pane) }
+                    modifier = Modifier.weight(1f).fillMaxHeight().padding(PanePadding),
+                    verticalArrangement = Arrangement.spacedBy(PanePadding / 2),
+                ) { pinned(pane) }
             }
         } else {
-            val mapHeight = (width - PanePadding * 2) * mapShape + PanePadding * 2
-            val pane = PaneSize(width - PanePadding * 2, height - PanePadding * 2)
+            val pinnedHeight = (height * PINNED_FRACTION).coerceAtMost(MAX_PINNED_HEIGHT)
+            val mainPane = PaneSize(width - PanePadding * 2, height - pinnedHeight - PanePadding * 2)
+            val pinnedPane = PaneSize(width - PanePadding * 2, pinnedHeight - PanePadding * 2)
             Column(modifier = Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth()
-                        .height(mapHeight.coerceIn(height * MIN_PORTRAIT_MAP_FRACTION, height * MAX_PORTRAIT_MAP_FRACTION))
-                        .padding(PanePadding),
-                ) { map() }
+                Box(modifier = Modifier.fillMaxWidth().weight(1f).padding(PanePadding)) { main(mainPane) }
                 Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(PanePadding),
-                    verticalArrangement = Arrangement.spacedBy(PanePadding),
-                ) { panel(pane) }
+                    modifier = Modifier.fillMaxWidth().height(pinnedHeight)
+                        .padding(start = PanePadding, end = PanePadding, bottom = PanePadding),
+                    verticalArrangement = Arrangement.spacedBy(PanePadding / 2),
+                ) { pinned(pinnedPane) }
             }
         }
     }
 }
 
-/** The least of an upright screen the map gets, however wide the racing area is: still enough to steer to. */
-private const val MIN_PORTRAIT_MAP_FRACTION = 0.45f
+/** How much of an upright screen the glance panel takes: enough for two rows of big words and numbers. */
+private const val PINNED_FRACTION = 0.36f
 
-/** And the most, however tall it is: what is left is the advice and the side, which are read at a glance. */
-private const val MAX_PORTRAIT_MAP_FRACTION = 0.72f
+/** And no more than this on a tall screen: the rest is better spent on the map. */
+private val MAX_PINNED_HEIGHT = 300.dp
 
 /** A small status pill, e.g. GPS quality. */
 @Composable
@@ -143,6 +140,20 @@ fun adviceColor(advice: TackAdvice): Color = when (advice) {
     TackAdvice.EITHER -> RaceColors.White
     TackAdvice.UNKNOWN -> RaceColors.Muted
 }
+
+/**
+ * The colour of the speed against its average: green when the boat is going faster than it has been,
+ * red when slower, white within a tenth of a knot - or when it is not being judged at all.
+ */
+fun speedDeltaColor(deltaMps: Double?): Color = when {
+    deltaMps == null -> RaceColors.Muted
+    deltaMps > SPEED_DELTA_BAND_MPS -> RaceColors.Early
+    deltaMps < -SPEED_DELTA_BAND_MPS -> RaceColors.Late
+    else -> RaceColors.White
+}
+
+/** A tenth of a knot either way is the same speed. */
+private const val SPEED_DELTA_BAND_MPS = 0.05
 
 /** The colour of a shift relative to the reference wind: amber veered, blue backed. */
 @Composable

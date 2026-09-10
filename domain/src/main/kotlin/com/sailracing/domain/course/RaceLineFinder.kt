@@ -18,11 +18,17 @@ import kotlin.math.sqrt
  *   points are one straight board across one square; a bend is either a tack or the local wind changing.
  * @property seconds how long the whole line takes at the assumed boat speed, tack losses included.
  * @property tacks how often the boat changes tack along the line.
+ * @property direct true when the line is not a searched beat but the straight course to the mark: the mark
+ *   is not upwind, the boat is already in its square, or the wind is such that there is no beating to it at
+ *   all. It is a course to steer like any other, but it is not a line to weigh against a beat - a straight
+ *   course is charged the ideal beat and never a tack, so it flatters itself against every line that says
+ *   how the beat is actually sailed.
  */
 public data class RaceLine(
     val points: List<CoursePosition> = emptyList(),
     val seconds: Double = 0.0,
     val tacks: Int = 0,
+    val direct: Boolean = false,
 ) {
     public val isEmpty: Boolean get() = points.isEmpty()
 
@@ -337,6 +343,7 @@ public object RaceLineFinder {
         points = listOf(from, to),
         seconds = toGoMeters(conditions.shiftAt(from), from, to, tackAngleDegrees) / conditions.speedAt(from),
         tacks = 0,
+        direct = true,
     )
 
     /**

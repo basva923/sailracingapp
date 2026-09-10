@@ -44,7 +44,10 @@ class RaceLinePlannerTest {
         assertEquals(plan.safe.points, plan.fast.points)
         assertFalse(plan.isEmpty)
         assertEquals(RaceLineSettings().runs, plan.runs)
-        assertEquals(plan.runs, plan.sampled.size)
+        assertTrue(
+            plan.sampled.size in 1..RaceLineSettings().searched,
+            "a line per wind a beat was searched in, bar the winds too wild to beat in at all: ${plan.sampled.size}",
+        )
         // The bad day is barely worse than the good one, and the mean sits between them.
         assertTrue(plan.safeRisk.riskSeconds < 30.0, "a settled wind is not a gamble: ${plan.safeRisk}")
         assertTrue(plan.safeRisk.goodSeconds <= plan.safeRisk.meanSeconds)
@@ -55,23 +58,31 @@ class RaceLinePlannerTest {
     }
 
     @Test
-    fun `the flyer goes to the side nobody can be sure of, and the race line does not`() {
+    fun `a square speaks for itself only as far as its share of the day's samples goes`() {
         // Both sides average the same wind. The right half swings 20 degrees either way from sample to
-        // sample, the left half barely moves: the same mean, a very different bet.
+        // sample, the left half barely moves - but the whole course is sailed evenly, so no square holds
+        // more than a ninth of the day's samples and no square's own history is worth more than a ninth of
+        // the 60% that measured wind gets. Both sides are therefore drawn mostly out of the same
+        // course-wide histogram, and the model says so: there is no bet in it.
         val shifty = CourseFixtures.field(spec, samplesPerCell = 60) { cell, index, _ ->
             val swing = if (cell.column >= 6) 20.0 else 2.0
             CourseFixtures.Sample(if (index % 2 == 0) swing else -swing, 3.0)
         }
-        val plan = plan(shifty)
+        val field = shifty
+        for (block in field.blocks) assertEquals(1.0 / field.blocks.size, block.share, 1e-9)
 
-        assertFalse(plan.agree, "the two sides are not the same bet, so the lines should differ")
-        assertTrue(sideOf(plan.fast) > sideOf(plan.safe) + 20.0, "the flyer should go right: ${sideOf(plan.fast)} against ${sideOf(plan.safe)}")
-        assertTrue(sideOf(plan.fast) > 0.0, "the flyer should go into the uncertain half: ${sideOf(plan.fast)}")
-        // The gamble is a gamble: it wins some of the winds and loses others.
-        assertTrue(plan.winFraction > 0.0 && plan.winFraction < 1.0, "the flyer neither won nor lost anything: ${plan.winFraction}")
-        assertTrue(plan.fastRisk.spreadSeconds > plan.safeRisk.spreadSeconds, "the flyer should be the more variable line")
-        assertTrue(plan.fastRisk.goodSeconds < plan.safeRisk.goodSeconds, "the flyer should have the better good day")
-        assertTrue(plan.safeRisk.badSeconds < plan.fastRisk.badSeconds, "the race line should have the better bad day")
+        val sampler = WindSampler.of(field)
+        val random = kotlin.random.Random(7L)
+        val drawn = List(2000) { sampler.draw(random) }
+        fun spread(cell: GridCell): Double {
+            val winds = drawn.map { it.blockShiftDegrees(cell) }
+            val mean = winds.average()
+            return kotlin.math.sqrt(winds.sumOf { (it - mean) * (it - mean) } / winds.size)
+        }
+        val steady = spread(GridCell(0, 1))
+        val swinging = spread(GridCell(2, 1))
+        assertEquals(steady, swinging, steady * 0.2, "one square's own history outweighed the whole day's")
+        assertTrue(plan(shifty).agree, "the two sides came out as different bets on a ninth of the evidence each")
     }
 
     @Test
@@ -99,7 +110,7 @@ class RaceLinePlannerTest {
             CourseFixtures.Sample(0.0, speed)
         }
         for (column in 0 until 12) {
-            assertEquals(3.0, puffy.speedMps(GridCell(column, 6)), 0.01, "the fixture means both halves to average 3 m/s")
+            assertEquals(3.0, WindSampler.of(puffy).mean.speedMps(GridCell(column, 6)), 0.01, "the fixture means both halves to average 3 m/s")
         }
         val plan = plan(puffy)
         assertFalse(plan.agree, "the same mean speed with a very different spread is still a bet")
@@ -111,14 +122,16 @@ class RaceLinePlannerTest {
     fun `the wind the boat is measuring now bends the line, and its tack costs to leave`() {
         val even = CourseFixtures.even(spec, samplesPerCell = 60)
         val straight = plan(even)
-        // Beating in a wind veered 25 degrees on top of everything measured: the whole beat leans right.
+        // Beating in a wind veered 25 degrees on top of everything measured: a third of the simulated winds
+        // are that veer over the whole course, and the beat leans with it.
         val veered = plan(even, currentShiftDegrees = 25.0)
         val backed = plan(even, currentShiftDegrees = -25.0)
-        // A veer lifts starboard, and starboard points up and to the left: the beat leans that way, and the
-        // boat comes back to the mark on a short port tack.
-        assertTrue(sideOf(veered.safe) < sideOf(straight.safe), "a veer did not send the boat out on starboard")
-        assertTrue(sideOf(backed.safe) > sideOf(straight.safe), "a backing wind did not send the boat out on port")
-        assertEquals(-sideOf(veered.safe), sideOf(backed.safe), 25.0, "the two shifts should mirror each other")
+        // A veer lifts starboard, and starboard points up and to the left: the beat goes out that way and
+        // comes back to the mark on a short port tack. A backing wind is the mirror of it.
+        assertTrue(sideOf(veered.safe) < 0.0, "a veer did not send the boat out on starboard: ${sideOf(veered.safe)}")
+        assertTrue(sideOf(backed.safe) > 0.0, "a backing wind did not send the boat out on port: ${sideOf(backed.safe)}")
+        assertEquals(-sideOf(veered.safe), sideOf(backed.safe), 45.0, "the two shifts should mirror each other")
+        assertNotEquals(veered.safe.points, straight.safe.points, "the wind of the moment changed nothing at all")
 
         // On port tack the line may start on port for nothing; starting on starboard costs a tack.
         val onPort = plan(even, currentTack = Tack.PORT)
@@ -143,18 +156,16 @@ class RaceLinePlannerTest {
         assertEquals(12, plan.sampled.size)
 
         // The line through the mean wind is a candidate, so it can never be beaten by a line that is not.
-        val mean = RaceLineFinder.find(WindSampler.mean(shifty, boat, null, settings), boat, mark, 45)
-        val meanTimes = List(12) { run ->
-            RaceLineFinder.secondsToSail(WindSampler.sample(shifty, boat, null, settings, kotlin.random.Random(settings.seed + run)), mean, 45)
-        }
+        val sampler = WindSampler.of(shifty)
+        val drawn = kotlin.random.Random(settings.seed).let { random -> List(12) { sampler.draw(random) } }
+        val mean = RaceLineFinder.find(sampler.mean, boat, mark, 45)
+        val meanTimes = drawn.map { RaceLineFinder.secondsToSail(it, mean, 45) }
         assertTrue(
             RaceLinePlanner.percentile(meanTimes.sorted(), 0.8) >= plan.safeRisk.badSeconds - 1e-9,
             "the safe line is beaten on its own measure by the line through the mean wind",
         )
         // And the safe line's own times are what the plan says they are.
-        val safeTimes = List(12) { run ->
-            RaceLineFinder.secondsToSail(WindSampler.sample(shifty, boat, null, settings, kotlin.random.Random(settings.seed + run)), plan.safe, 45)
-        }
+        val safeTimes = drawn.map { RaceLineFinder.secondsToSail(it, plan.safe, 45) }
         assertEquals(safeTimes.average(), plan.safeRisk.meanSeconds, 1e-9)
         assertEquals(RaceLinePlanner.percentile(safeTimes.sorted(), 0.2), plan.safeRisk.goodSeconds, 1e-9)
         assertEquals(RaceLinePlanner.percentile(safeTimes.sorted(), 0.8), plan.safeRisk.badSeconds, 1e-9)

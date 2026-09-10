@@ -33,6 +33,24 @@ object PlanText {
         }
     }
 
+    /**
+     * The reason for the tack advice in a few words, for the cell it shares with the word itself:
+     * "Stbd lifted 5°", "Headed 5° · port lifted", "At the mean ±6°".
+     */
+    fun tackGlance(plan: UpwindPlan): String {
+        val shift = plan.shiftFromReferenceDegrees?.let { "${abs(it).roundToInt()}°" }
+        return when (plan.tackAdvice) {
+            TackAdvice.HOLD -> "${tackShort(plan.currentTack)} lifted $shift"
+            TackAdvice.TACK -> "Headed $shift · ${tackShort(plan.favouredTack).lowercase()} lifted"
+            TackAdvice.EITHER -> when {
+                plan.oscillationDegrees != null -> "At the mean ±${plan.oscillationDegrees!!.roundToInt()}°"
+                plan.referenceIsMeasured -> "At the mean wind"
+                else -> "At the set wind"
+            }
+            TackAdvice.UNKNOWN -> if (plan.currentTack == null) "No heading" else "Sail close-hauled"
+        }
+    }
+
     fun sideTitle(plan: UpwindPlan): String = when (plan.favouredSide) {
         FavouredSide.LEFT -> "GO LEFT"
         FavouredSide.RIGHT -> "GO RIGHT"
@@ -54,6 +72,25 @@ object PlanText {
             else -> "go towards the shift"
         }
         return parts.joinToString(", ").replaceFirstChar { it.uppercase() } + " · " + verdict
+    }
+
+    /**
+     * The evidence for the side in a few words: "Wind +4° · speed +0.3 · trend -1°", or how far the boat
+     * is from having sailed both sides.
+     */
+    fun sideGlance(plan: UpwindPlan): String {
+        val parts = mutableListOf<String>()
+        plan.sides.windDifferenceDegrees?.let { parts += "wind ${Formatters.signedDegrees(it)}" }
+        plan.sides.speedDifferenceMps?.let { parts += "speed ${Formatters.signedKnotsValue(it)}" }
+        plan.trendDegrees?.let { parts += "trend ${Formatters.signedDegrees(it)}" }
+        if (parts.isEmpty()) return "Sail both sides · ${plan.sides.leftSamples} L / ${plan.sides.rightSamples} R"
+        return parts.joinToString(" · ").replaceFirstChar { it.uppercase() }
+    }
+
+    private fun tackShort(tack: Tack?): String = when (tack) {
+        Tack.STARBOARD -> "Stbd"
+        Tack.PORT -> "Port"
+        null -> "—"
     }
 
     private fun tackName(tack: Tack?): String = when (tack) {

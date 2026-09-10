@@ -35,11 +35,12 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * The drawn map of the racing area, wind up: the area that follows the track, one arrow per cell showing
- * the mean wind there (solid where it was measured in the cell, faint where it is mostly the day's wind;
- * amber veered, blue backed), the start line, the windward mark, the track, the race line from the boat to
- * the mark with the flyer dashed beside it where the two disagree, the boat with its two close-hauled
- * headings (the lifted one bold), a north arrow and a scale.
+ * The drawn map of the racing area, wind up: the area that follows the track in its own fine grid, the big
+ * squares the wind is worked out in over it, one arrow per big square showing the wind there (solid where
+ * it was measured in that square, faint where nobody has sailed; amber veered, blue backed), the start
+ * line, the windward mark, the track, the race line from the boat to the mark with the flyer dashed beside
+ * it where the two disagree, the boat with its two close-hauled headings (the lifted one bold), a north
+ * arrow and a scale.
  * No real map: the geometry is what matters on the water.
  *
  * It fills whatever room it is given, with the racing area scaled to fit it. Pinch to zoom and drag to
@@ -97,19 +98,36 @@ fun CourseMap(
             drawLine(RaceColors.Dim.copy(alpha = 0.5f), Offset(areaTopLeft.x, py), Offset(areaTopLeft.x + areaSize.width, py), 1f)
             y += area.cellMeters
         }
-        // Wind arrows, pointing where the wind blows to.
-        if (cellPx >= MIN_ARROW_CELL_PX) {
-            for (arrow in state.arrows) {
-                val centre = toPx(CoursePosition(area.leftMeters + (arrow.column + 0.5) * area.cellMeters, area.bottomMeters + (arrow.row + 0.5) * area.cellMeters))
-                val color = when {
-                    arrow.shiftDegrees > SHIFT_COLOUR_THRESHOLD -> RaceColors.Estimated
-                    arrow.shiftDegrees < -SHIFT_COLOUR_THRESHOLD -> RaceColors.Info
-                    else -> RaceColors.White
-                }
-                // How much of this square's wind is its own: a guess is drawn faint, a measurement solid.
-                val alpha = (MIN_ARROW_ALPHA + (1f - MIN_ARROW_ALPHA) * arrow.confidence).toFloat().coerceIn(MIN_ARROW_ALPHA, 1f)
-                drawWindArrow(centre, arrow.shiftDegrees + 180.0, cellPx * 0.7f, color.copy(alpha = alpha), if (arrow.measured) 3f else 2f)
+        // The big squares the wind is worked out in, over the grid of the area itself.
+        state.windArea?.let { blocks ->
+            var blockX = blocks.leftMeters
+            while (blockX <= blocks.rightMeters + 1e-6) {
+                val px = toPx(CoursePosition(blockX, 0.0)).x
+                drawLine(RaceColors.Dim, Offset(px, areaTopLeft.y), Offset(px, areaTopLeft.y + areaSize.height), 2f)
+                blockX += blocks.cellMeters
             }
+            // The top row of big squares can reach above the water the area covers; the map stops at it.
+            var blockY = blocks.bottomMeters
+            while (blockY <= min(blocks.topMeters, area.topMeters) + 1e-6) {
+                val py = toPx(CoursePosition(0.0, blockY)).y
+                drawLine(RaceColors.Dim, Offset(areaTopLeft.x, py), Offset(areaTopLeft.x + areaSize.width, py), 2f)
+                blockY += blocks.cellMeters
+            }
+        }
+        // Wind arrows, pointing where the wind blows to: one per big square.
+        for (arrow in state.arrows) {
+            val arrowPx = (arrow.sizeMeters * scale).toFloat()
+            if (arrowPx < MIN_ARROW_CELL_PX) continue
+            val centre = toPx(CoursePosition(arrow.acrossMeters, arrow.upwindMeters))
+            val color = when {
+                arrow.shiftDegrees > SHIFT_COLOUR_THRESHOLD -> RaceColors.Estimated
+                arrow.shiftDegrees < -SHIFT_COLOUR_THRESHOLD -> RaceColors.Info
+                else -> RaceColors.White
+            }
+            // How much of the day this square has seen: a square nobody sailed is drawn faint, one the
+            // race was sailed in solid.
+            val alpha = (MIN_ARROW_ALPHA + (1f - MIN_ARROW_ALPHA) * arrow.confidence).toFloat().coerceIn(MIN_ARROW_ALPHA, 1f)
+            drawWindArrow(centre, arrow.shiftDegrees + 180.0, arrowPx * 0.6f, color.copy(alpha = alpha), if (arrow.measured) 3f else 2f)
         }
         // The axis from the start to the mark: the split between the two sides.
         val origin = toPx(CoursePosition(0.0, 0.0))
@@ -157,7 +175,7 @@ private const val SHIFT_COLOUR_THRESHOLD = 1.5
 /** Below this the map has no room for anything at all, not even its corner labels. */
 private const val MIN_DRAWABLE_PX = 48f
 
-/** Cells smaller than this on screen get no arrow: it would be an unreadable smudge. */
+/** Squares smaller than this on screen get no arrow: it would be an unreadable smudge. */
 private const val MIN_ARROW_CELL_PX = 14f
 
 /** How faint the arrow of a square that knows nothing of its own is drawn. */

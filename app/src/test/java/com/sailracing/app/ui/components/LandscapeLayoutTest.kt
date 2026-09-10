@@ -1,11 +1,13 @@
 package com.sailracing.app.ui.components
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.sailracing.app.ui.theme.SailRacingTheme
 import org.junit.Rule
@@ -37,17 +39,21 @@ class LandscapeLayoutTest {
     }
 
     @Test
-    fun theMapSitsBesideThePanelInLandscape() {
+    fun theMapSitsBesideTheGlancePanelInLandscape() {
         compose.setContent {
             SailRacingTheme {
-                MapAndPanel(
-                    map = { Text("the map", modifier = Modifier.testTag("map")) },
-                    panel = { Text("the numbers", modifier = Modifier.testTag("panel")) },
+                GlanceLayout(
+                    main = { Text("the map", modifier = Modifier.fillMaxSize().testTag("main")) },
+                    pinned = { Text("the glance", modifier = Modifier.fillMaxSize().testTag("pinned")) },
                 )
             }
         }
-        val map = compose.onNodeWithTag("map").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
-        val panel = compose.onNodeWithTag("panel").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
-        assertTrue(map.right <= panel.left, "the map should be to the left of the panel: $map, $panel")
+        val main = compose.onNodeWithTag("main").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val pinned = compose.onNodeWithTag("pinned").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val screen = compose.onRoot().fetchSemanticsNode().size.height.toFloat()
+        assertTrue(main.right <= pinned.left, "the map should be to the left of the panel: $main, $pinned")
+        // On its side the panel has the whole height, like the map.
+        assertTrue(pinned.height > screen * 0.85f, "the panel fills the height: $pinned of $screen")
+        assertTrue(main.height > screen * 0.85f, "and so does the map: $main of $screen")
     }
 }

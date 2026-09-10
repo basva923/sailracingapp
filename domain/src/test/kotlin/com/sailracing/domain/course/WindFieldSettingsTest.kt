@@ -6,8 +6,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
- * What the wind over a racing area is believed to be like before anything is measured. The defaults decide
- * how quickly a square borrows its neighbours' wind and how uncertain an unsailed corner stays, so they are
+ * How the wind over a racing area is worked out from what has been measured of it. The defaults decide how
+ * coarsely the area is cut and how much of a drawn wind is the moment, the day and chance, so they are
  * pinned down here: changing one is a decision, not a typo.
  */
 class WindFieldSettingsTest {
@@ -15,14 +15,19 @@ class WindFieldSettingsTest {
     @Test
     fun `the defaults are the ones the wind field is documented with`() {
         val settings = WindFieldSettings()
-        assertEquals(3, settings.minCellSamples)
-        assertEquals(150.0, settings.correlationLengthMeters)
-        assertEquals(3.0, settings.neighbourhoodRadii)
-        assertEquals(12.0, settings.spatialSpreadDegrees)
-        assertEquals(8.0, settings.sampleSpreadDegrees)
-        assertEquals(3.0, settings.minSpreadDegrees)
-        assertEquals(30.0, settings.maxSpreadDegrees)
-        assertEquals(0.005, settings.minWeightFraction)
+        assertEquals(3, settings.columns)
+        assertEquals(0.35, settings.currentWindFraction)
+        assertEquals(0.05, settings.randomWindFraction)
+        assertEquals(3, settings.minBlockSamples)
+        assertEquals(0.6, settings.speedSpreadFactor)
+        assertEquals(0.5, settings.minBoatSpeedMps)
+    }
+
+    @Test
+    fun `what the moment and chance leave over is what the histograms are worth`() {
+        assertEquals(0.6, WindFieldSettings().measuredFraction, 1e-9)
+        assertEquals(1.0, WindFieldSettings(currentWindFraction = 0.0, randomWindFraction = 0.0).measuredFraction, 1e-9)
+        assertEquals(0.0, WindFieldSettings(currentWindFraction = 0.5, randomWindFraction = 0.5).measuredFraction, 1e-9)
     }
 
     @Test
@@ -30,14 +35,16 @@ class WindFieldSettingsTest {
         fun message(block: () -> WindFieldSettings): String =
             assertFailsWith<IllegalArgumentException> { block() }.message.orEmpty()
 
-        assertEquals("a square is measured by at least one sample: 0", message { WindFieldSettings(minCellSamples = 0) })
-        assertTrue(message { WindFieldSettings(correlationLengthMeters = 0.0) }.startsWith("the wind hangs together"))
-        assertTrue(message { WindFieldSettings(neighbourhoodRadii = 0.0) }.startsWith("a square listens"))
-        assertTrue(message { WindFieldSettings(spatialSpreadDegrees = 0.0) }.startsWith("the spreads believed in"))
-        assertTrue(message { WindFieldSettings(sampleSpreadDegrees = -1.0) }.startsWith("the spreads believed in"))
-        assertTrue(message { WindFieldSettings(minSpreadDegrees = -1.0) }.startsWith("spreads must be a range"))
-        assertTrue(message { WindFieldSettings(minSpreadDegrees = 40.0) }.startsWith("spreads must be a range"))
-        assertEquals("a share of the weight is a fraction: 2.0", message { WindFieldSettings(minWeightFraction = 2.0) })
+        assertEquals("an area is at least one big square across: 0", message { WindFieldSettings(columns = 0) })
+        assertTrue(message { WindFieldSettings(currentWindFraction = 1.5) }.startsWith("the wind of the moment's share"))
+        assertTrue(message { WindFieldSettings(randomWindFraction = -0.1) }.startsWith("chance's share"))
+        assertTrue(
+            message { WindFieldSettings(currentWindFraction = 0.8, randomWindFraction = 0.3) }
+                .startsWith("the wind of the moment and chance cannot be worth more"),
+        )
+        assertEquals("a big square is measured by at least one sample: 0", message { WindFieldSettings(minBlockSamples = 0) })
+        assertEquals("a share of the speed spread is not negative: -1.0", message { WindFieldSettings(speedSpreadFactor = -1.0) })
+        assertEquals("the slowest a boat may go must be positive: 0.0", message { WindFieldSettings(minBoatSpeedMps = 0.0) })
     }
 
     @Test

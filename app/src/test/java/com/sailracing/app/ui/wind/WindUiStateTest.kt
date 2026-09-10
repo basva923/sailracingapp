@@ -39,7 +39,11 @@ class WindUiStateTest {
         assertEquals("---", state.heading)
         assertEquals("", state.headingSource)
         assertEquals("---", state.speed)
+        assertEquals("", state.speedDelta)
+        assertNull(state.speedDeltaMps)
         assertEquals("---", state.vmg)
+        assertEquals("Shift vs set wind", state.shiftTitle)
+        assertEquals("No heading", state.adviceGlance)
         assertEquals("", state.tackLabel)
         assertEquals("—", state.tackShort)
         assertEquals("Tack", state.pointOfSailLabel)
@@ -72,7 +76,12 @@ class WindUiStateTest {
         assertEquals("340°", state.heading)
         assertEquals("GPS course", state.headingSource)
         assertEquals("5.8", state.speed)
+        // Two close-hauled samples at the same speed: the boat is exactly on its average.
+        assertEquals("0.0 vs avg 5.8", state.speedDelta)
+        assertEquals(0.0, assertNotNull(state.speedDeltaMps), 1e-9)
         assertEquals("4.5", state.vmg)
+        assertEquals("Shift vs set wind", state.shiftTitle)
+        assertEquals("Stbd lifted 5°", state.adviceGlance)
         assertEquals(Tack.STARBOARD, state.tack)
         assertEquals("Starboard upwind", state.tackLabel)
         assertEquals("Stbd", state.tackShort)
@@ -108,8 +117,39 @@ class WindUiStateTest {
         assertEquals(TackAdvice.TACK, state.advice)
         assertEquals("TACK", state.adviceTitle)
         assertEquals("Headed 10° from the mean wind: port is lifted", state.adviceDetail)
+        assertEquals("Headed 10° · port lifted", state.adviceGlance)
+        assertEquals("Shift vs mean", state.shiftTitle)
         assertEquals(-10.0, assertNotNull(state.estimatedOffset), 1e-6)
         assertTrue(state.shifts.all { kotlin.math.abs(it) < 1e-6 })
+    }
+
+    @Test
+    fun theSpeedIsJudgedAgainstTheAverageOnlyOnTheAngle() {
+        // A boat drifting at 0.2 m/s is not sampled: there is nothing to compare its speed with yet.
+        val drifting = RaceEngine()
+        drifting.dispatch(RaceEvent.SetWindDirection(20))
+        drifting.dispatch(RaceEvent.FixReceived(PositionFix(GeoPoint(51.14, 5.83), 1_000L, 0.2, 340.0, 3.0)))
+        val slow = WindUiState.from(drifting.snapshot(1_000))
+        assertEquals("0.4", slow.speed)
+        assertEquals("No average yet", slow.speedDelta)
+        assertNull(slow.speedDeltaMps)
+
+        // Close-hauled at 3 m/s, then a faster fix on the same tack: faster than the average of the two.
+        val engine = engine(340.0)
+        engine.dispatch(RaceEvent.FixReceived(PositionFix(GeoPoint(51.14, 5.83), 2_000L, 3.4, 340.0, 3.0)))
+        val faster = WindUiState.from(engine.snapshot(2_000))
+        assertEquals("6.6", faster.speed)
+        assertEquals("+0.4 vs avg 6.2", faster.speedDelta)
+        assertEquals(0.2, assertNotNull(faster.speedDeltaMps), 1e-9)
+
+        // Bearing away to a reach the average is shown but the speed is not judged against it:
+        // the average is of close-hauled sailing, and a reaching boat is faster whatever the wind does.
+        engine.dispatch(RaceEvent.FixReceived(PositionFix(GeoPoint(51.14, 5.83), 3_000L, 4.0, 300.0, 3.0)))
+        val reaching = WindUiState.from(engine.snapshot(3_000))
+        assertEquals(TackAdvice.UNKNOWN, reaching.advice)
+        assertEquals("Sail close-hauled", reaching.adviceGlance)
+        assertEquals("Avg 6.2 kn", reaching.speedDelta)
+        assertNull(reaching.speedDeltaMps)
     }
 
     @Test

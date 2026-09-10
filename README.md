@@ -11,11 +11,15 @@ See [Design.md](Design.md) for the original feature design.
 - **Session**: the app opens on the Session screen, the one place to start a session (GPS, wind
   statistics and countdown on), end it (GPS off, data kept) and clear it (line, mark, track and
   statistics forgotten for the next race), with an overview of what the session holds.
-- **Race screen**: the map fills the top of the screen and everything else is under it, in the order it
-  matters while beating: whether to tack, which side pays, what the race line costs, the numbers, then the
-  wind, the mark and the statistics. Beating, only the top of it is looked at. The map is given the height
-  the racing area can use - a beat three times as tall as it is wide gets up to three quarters of the
-  screen, a square area only what it fills - and the rest scrolls. Landscape puts the map beside the rest.
+- **Race screen**: built for a helm who looks at it for a second between the telltales and the water, so
+  nothing on it scrolls. The map with the race line fills the top of the screen (the left half on a phone
+  on its side), with what the line costs written along its bottom edge. Under it the glance panel:
+  *HOLD* or *TACK* and *GO LEFT* / *GO RIGHT*, in big coloured words with the reason under each, then the
+  speed against the day's average on that point of sail (green faster, red slower) and the shift from the
+  mean wind with a strip of the histogram showing where the wind sits now. A bar under that carries the
+  race time and *More*, which swaps the map for everything else - the compass rose, all the wind numbers
+  and averages, the wind and mark buttons, the full histogram, the statistics and the map's legend - while
+  the glance panel stays put; *Map* brings the map back. A *Fit* button appears on the map while it is zoomed.
 - **Wind**: enter a rough direction manually, or sail close-hauled and press *Starboard tack* / *Port tack*
   to derive it from your heading and the configured tack angle. While sailing upwind the app builds a
   histogram of the estimated wind direction, a shift history and average upwind/downwind speed and VMG.
@@ -31,25 +35,28 @@ See [Design.md](Design.md) for the original feature design.
 - **Map**: a drawn (not downloaded) wind-up map whose racing area follows the track: its bounding box
   (with the line, the boat and the mark) in squares of 5 m or a multiple of it - automatically, or the
   size set under *Settings → Map* (5 m to 200 m). It is drawn as big as the room allows, the whole area at
-  one scale; pinch to zoom, drag to move, double tap (or *Fit the map*) to fit the area again. Every square carries an arrow of the wind there,
-  solid where it was measured in that square and faint where it is mostly the day's average wind; amber
-  veered, blue backed.
-- **The wind in a square that was never sailed through** is not the nearest measurement moved sideways. It
-  is a blend of three things, each weighed by how wrong it could be: the samples taken in the square, the
-  samples taken around it (weighed by how far away and gathered into one measurement, not one per square),
-  and the wind measured over the whole course wherever it was measured. So a square keeps what it measured,
-  its neighbour borrows most of it, and an unsailed corner shows the day's breeze - with the doubt to match,
-  which is what makes the race line treat that corner as the gamble it is. Each square also keeps how much
-  its wind wandered and a histogram of the boat speed in it, blended the same way.
+  one scale; pinch to zoom, drag to move, double tap (or the *Fit* button) to fit the area again. Over that
+  fine grid lie the **big squares the wind is worked out in** - three across the course and as many rows as
+  it is tall - each with an arrow of the wind measured there, solid where enough of it was measured and
+  faint where nobody has sailed; amber veered, blue backed.
+- **The wind is kept in big squares, not in the little ones.** A race is sailed up the middle and back down
+  it, so most 50 m squares of a course hold no close-hauled samples at all and the sailed ones hold a
+  handful of seconds each - an anecdote, not a distribution. Every big square instead keeps a *histogram* of
+  the wind shifts sailed through it and one of the boat speeds, plus its share of the day's samples. Nothing
+  is smoothed or interpolated: a square nobody sailed through holds nothing, and when a wind is drawn for it
+  the whole course's histogram is what it blows.
 - **Windward mark, the race line and the flyer**: set the mark at your position or, as the committee posts
   it, by bearing and distance from the line; without one the middle of the top edge of the area is used.
-  Every square of the area carries a wind *distribution* - a mean, how much it wandered, and a histogram of
-  the boat speed measured there - so the beat is not searched once but through sixteen winds drawn from
-  what has been measured, starting from the tack the boat is on and the wind it is measuring right now.
+  The beat is not searched once but through a thousand simulated winds, each of them drawn big square by
+  big square: 35 % of the time the wind the boat is measuring right now (over the whole course at once),
+  60 % split between the square's own histogram and the whole course's by how much of the day's evidence
+  the square holds, and 5 % anything at all - the shift nobody saw coming. A beat is searched in sixteen of
+  those winds and every candidate line is then timed through all thousand.
   The **green line** is the one to sail: board by board with the tacks in it, the line whose bad day is
-  least bad. Where one side of the course is a bet - shiftier, puffier or simply unsailed - an **amber
-  dashed line** appears beside it: the flyer, quicker when the wind is kind. The map says how many tacks
-  each holds, how long it takes, how bad its bad day is and how many of the sixteen winds the flyer won.
+  least bad. Where one side of the course is a bet - puffier, or paying only if the wind goes one way - an
+  **amber dashed line** appears beside it: the flyer, quicker when the wind is kind. The map says how many
+  tacks each holds, how long it takes, how bad its bad day is and how many of the thousand winds the flyer
+  won.
   It is worked out again when the boat sails into a new square or the wind it is measuring moves 5°.
   [docs/RACE_LINE.md](docs/RACE_LINE.md) has the algorithm, and
   [docs/RACE_LINE_GALLERY.md](docs/RACE_LINE_GALLERY.md) has ten worked examples in pictures.

@@ -37,17 +37,6 @@ public class SpeedHistogram private constructor(private val bins: DoubleArray) {
     public operator fun plus(other: SpeedHistogram): SpeedHistogram =
         SpeedHistogram(DoubleArray(BIN_COUNT) { bins[it] + other.bins[it] })
 
-    /** The same shape carrying [factor] times the weight: how a neighbour's histogram is weighted in. */
-    public fun scaledBy(factor: Double): SpeedHistogram = SpeedHistogram(DoubleArray(BIN_COUNT) { bins[it] * factor })
-
-    /**
-     * Adds this histogram, weighed by [weight], into raw bins: how the histogram of a square nobody sailed
-     * through is blended from the squares that were, without a copy per neighbour.
-     */
-    internal fun addTo(target: DoubleArray, weight: Double) {
-        for (bin in 0 until BIN_COUNT) target[bin] += bins[bin] * weight
-    }
-
     /** The mean speed, or null when nothing was measured. */
     public val meanMps: Double?
         get() {

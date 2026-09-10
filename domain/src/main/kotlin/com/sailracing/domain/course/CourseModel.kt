@@ -112,7 +112,7 @@ public class CourseModel private constructor(
             val spec = GridSpec.covering(positions + listOfNotNull(pinEnd, boatEnd, setMark, boat, CoursePosition(0.0, 0.0)), inputs.settings.grid)
             val mark = setMark ?: spec.topCenter
             val grid = TrackGrid.build(track, frame, spec, mark)
-            val field = WindField.build(grid, frame.windDirectionDegrees, inputs.settings.windField)
+            val field = WindField.build(track, frame, spec, inputs.settings.windField)
             // The wind of the moment is measured against north, the field against the reference wind.
             val currentShift = inputs.currentWindDegrees?.let { Angles.signedDifference(frame.windDirectionDegrees, it) }
             val plan = boat?.let {

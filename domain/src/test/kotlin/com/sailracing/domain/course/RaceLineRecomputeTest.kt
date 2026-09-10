@@ -116,12 +116,12 @@ class RaceLineRecomputeTest {
 
         // Three close-hauled samples in the square the boat is in: with one measured square the whole field
         // becomes that measurement, a 30 degree veer, and the beat that suits it is a different one.
-        val samples = List(WindFieldSettings().minCellSamples) { point(20.0, 26.0, wind = 30.0, seconds = it + 1L) }
+        val samples = List(WindFieldSettings().minBlockSamples) { point(20.0, 26.0, wind = 30.0, seconds = it + 1L) }
         val measured = Track(area.points + samples)
         val same = CourseModel.build(measured, inputs.copy(boat = at(20.0, 26.0)), previous = first)
         assertEquals(first.spec, same.spec)
         assertEquals(square(first), square(same))
-        assertNotEquals(first.windField, same.windField, "the new wind was not measured at all")
+        assertNotEquals(0, same.windField.samples, "the new wind was not measured at all")
         assertPinned(first.raceLine, same.raceLine, assertNotNull(same.boat), "a shift measured mid-square")
 
         // One square further up it is picked up, and it is not the line the old, even field would give.
@@ -379,7 +379,7 @@ class RaceLineRecomputeTest {
         // The finder itself does not depend on that: from outside the field the mark is aimed at from the
         // nearest square, so a caller that hands it one cannot make it throw or lose the mark.
         val outside = CoursePosition(0.0, 5_000.0)
-        val line = RaceLineFinder.find(model.windField, assertNotNull(model.boat), outside, 45)
+        val line = RaceLineFinder.find(WindSampler.of(model.windField).mean, assertNotNull(model.boat), outside, 45)
         assertEquals(model.boat, line.points.first())
         assertEquals(outside, line.points.last())
         assertTrue(line.seconds > 0.0 && line.seconds.isFinite())
@@ -396,7 +396,7 @@ class RaceLineRecomputeTest {
         for (tenth in 0 until 36) {
             val bearing = Angles.toRadians(tenth * 10.0)
             val place = frame.toGeo(CoursePosition(295.0 * sin(bearing), 295.0 * cos(bearing)))
-            repeat(WindFieldSettings().minCellSamples) {
+            repeat(WindFieldSettings().minBlockSamples) {
                 ring += TrackPoint(0L, place, speedMps = 3.0, headingDegrees = 0.0, upwindWindDegrees = 20.0)
             }
         }

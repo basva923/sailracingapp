@@ -6,8 +6,8 @@ import kotlin.random.Random
 
 /**
  * Racing areas to search through, built the way the app builds them: a track of close-hauled samples,
- * binned onto the area, turned into a [WindField]. Nothing here fabricates a field directly, so the tests
- * see the same means, spreads and speed histograms a boat would have measured.
+ * binned onto the big squares of the area, turned into a [WindField]. Nothing here fabricates a field
+ * directly, so the tests see the same histograms a boat would have measured.
  */
 object CourseFixtures {
 
@@ -24,6 +24,7 @@ object CourseFixtures {
         spec: GridSpec,
         samplesPerCell: Int = 20,
         seed: Long = 1L,
+        settings: WindFieldSettings = WindFieldSettings(),
         sample: (cell: GridCell, sampleIndex: Int, random: Random) -> Sample?,
     ): WindField {
         val random = Random(seed)
@@ -42,8 +43,28 @@ object CourseFixtures {
                 )
             }
         }
-        val track = Track(points, capacity = points.size.coerceAtLeast(1))
-        return WindField.build(TrackGrid.build(track, frame, spec, spec.topCenter), referenceDegrees = 0.0)
+        return WindField.build(track(points), frame, spec, settings)
+    }
+
+    /** The samples as a track, with room for every one of them. */
+    fun track(points: List<TrackPoint>): Track = Track(points, capacity = points.size.coerceAtLeast(1))
+
+    /**
+     * A wind straight from a function of the square, without a measurement or a draw in between: what the
+     * race line search is handed, for the tests that are about the search rather than about the wind.
+     */
+    class Wind(
+        override val spec: GridSpec,
+        private val speedMps: (GridCell) -> Double = { SailingConditions.DEFAULT_BOAT_SPEED_MPS },
+        private val shiftDegrees: (GridCell) -> Double = { 0.0 },
+    ) : SailingConditions {
+
+        constructor(spec: GridSpec, speedMps: Double, shiftDegrees: (GridCell) -> Double = { 0.0 }) :
+            this(spec, { speedMps }, shiftDegrees)
+
+        override fun shiftDegrees(cell: GridCell): Double = shiftDegrees.invoke(cell)
+
+        override fun speedMps(cell: GridCell): Double = speedMps.invoke(cell)
     }
 
     /** A field with one steady wind and one speed everywhere: the plainest racing area there is. */

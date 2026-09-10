@@ -7,8 +7,6 @@ import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.max
-import kotlin.math.hypot
-import kotlin.math.ln
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -67,6 +65,22 @@ public data class GridSpec(
     public fun index(cell: GridCell): Int = cell.row * columns + cell.column
 
     public fun cellAt(index: Int): GridCell = GridCell(index % columns, index / columns)
+
+    /**
+     * The same water cut into big squares: [columns] of them across the area and as many rows as it takes
+     * to cover it, each one square. It is the grid the wind is worked out in ([WindField]), while this one
+     * stays the grid the track is binned onto and the race line is searched over.
+     *
+     * A racing area is rarely a whole number of big squares tall, so the top row may reach a little above
+     * it. That costs nothing - nothing is drawn or sailed up there - and it keeps the squares square,
+     * which is what makes a block of water a block of wind rather than a stripe of it.
+     */
+    public fun blocks(columns: Int): GridSpec {
+        require(columns > 0) { "an area is at least one big square across: $columns" }
+        val size = widthMeters / columns
+        val rows = ceil(heightMeters / size - EPSILON).toInt().coerceAtLeast(1)
+        return GridSpec(leftMeters, bottomMeters, columns, rows, size)
+    }
 
     /**
      * Which half of the course a cell lies in, split by the line from the origin towards [axisTarget] (the
@@ -175,19 +189,6 @@ public data class CellStats(
     /** Mean close-hauled boat speed here, or null without upwind samples. */
     public val meanSpeedMps: Double? get() = if (upwindSamples == 0) null else speedSum / upwindSamples
 
-    /**
-     * How much the wind direction wandered here: the circular standard deviation of the samples, in
-     * degrees, or null with fewer than two of them or with samples so scattered that they have no mean
-     * direction at all. This is what the race line's Monte Carlo draws its winds around.
-     */
-    public val windSpreadDegrees: Double?
-        get() {
-            if (upwindSamples < 2) return null
-            val resultant = hypot(windCosSum, windSinSum) / upwindSamples
-            if (resultant < RESULTANT_EPSILON) return null
-            return Angles.toDegrees(sqrt(-2.0 * ln(resultant.coerceAtMost(1.0))))
-        }
-
     public operator fun plus(other: CellStats): CellStats = CellStats(
         visits + other.visits,
         upwindSamples + other.upwindSamples,
@@ -197,10 +198,6 @@ public data class CellStats(
         speeds + other.speeds,
     )
 
-    private companion object {
-        /** Samples spread evenly around the compass leave a resultant of nothing, and no spread to speak of. */
-        const val RESULTANT_EPSILON: Double = 1e-9
-    }
 }
 
 /**

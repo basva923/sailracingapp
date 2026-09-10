@@ -94,18 +94,13 @@ class SpeedHistogramTest {
     }
 
     @Test
-    fun `histograms add up and can be weighed`() {
+    fun `histograms add up`() {
         val here = SpeedHistogram.of(2.0, 2.0)
         val there = SpeedHistogram.of(4.0, 4.0)
         val both = here + there
         assertEquals(4.0, both.totalWeight)
+        assertEquals(2.0, both.weightAt(2.0))
         assertEquals(3.125, assertNotNull(both.meanMps), 1e-9)
-
-        val weighed = here.scaledBy(3.0) + there
-        assertEquals(8.0, weighed.totalWeight)
-        assertEquals(6.0, weighed.weightAt(2.0))
-        assertEquals((6 * 2.125 + 2 * 4.125) / 8, assertNotNull(weighed.meanMps), 1e-9)
-        assertEquals(SpeedHistogram(), here.scaledBy(0.0))
     }
 
     @Test

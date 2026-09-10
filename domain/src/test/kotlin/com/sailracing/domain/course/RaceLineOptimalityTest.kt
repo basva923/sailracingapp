@@ -41,27 +41,15 @@ class RaceLineOptimalityTest {
     private val tinyBoat = CoursePosition(0.0, 10.0)
     private val tinyMark = CoursePosition(-10.0, 185.0)
 
-    /** A wind measured in every square of [spec]: [shift] degrees off the reference wind, positive = veered. */
-    private fun field(spec: GridSpec, shift: (GridCell) -> Double): WindField {
-        val points = ArrayList<TrackPoint>()
-        for (index in 0 until spec.cellCount) {
-            val centre = spec.center(spec.cellAt(index))
-            repeat(WindFieldSettings().minCellSamples) {
-                points += TrackPoint(
-                    timestampMillis = 0L,
-                    point = frame.toGeo(centre),
-                    speedMps = 3.0,
-                    headingDegrees = 0.0,
-                    upwindWindDegrees = Angles.normalize(shift(spec.cellAt(index))),
-                )
-            }
-        }
-        val track = Track(points, capacity = points.size + 1)
-        return WindField.build(TrackGrid.build(track, frame, spec, spec.topCenter), referenceDegrees = 0.0)
-    }
+    /**
+     * A wind of [shift] degrees off the reference in every square of [spec], positive = veered: handed to
+     * the search as it is, because what is under test is the search and not the measuring of a wind.
+     */
+    private fun field(spec: GridSpec, shift: (GridCell) -> Double): SailingConditions =
+        CourseFixtures.Wind(spec, 3.0, shift)
 
     /** The winds the search is tried in: even, one side shifted, a gradient, stripes and a seeded jumble. */
-    private fun winds(spec: GridSpec): List<Pair<String, WindField>> {
+    private fun winds(spec: GridSpec): List<Pair<String, SailingConditions>> {
         val jumble = Random(20240607).let { random -> List(spec.cellCount) { random.nextDouble(-25.0, 25.0) } }
         return listOf(
             "an even wind" to field(spec) { 0.0 },
@@ -312,7 +300,7 @@ class RaceLineOptimalityTest {
  *   square arrives. False is the finder's stricter reading: only a board carrying on into that square.
  */
 private class ExhaustiveBeat(
-    private val field: WindField,
+    private val field: SailingConditions,
     private val mark: CoursePosition,
     private val tackAngleDegrees: Int,
     private val speedMps: Double = RaceLineFinder.BOAT_SPEED_MPS,
@@ -327,7 +315,7 @@ private class ExhaustiveBeat(
     private val goals = squaresAt(mark).ifEmpty { listOf(spec.nearestCell(mark)) }
 
     /** How close to straight upwind any course in this field can point: the tack angle less the biggest shift. */
-    private val closestDegrees = max(0.0, tackAngleDegrees - field.cells.maxOf { abs(it.shiftDegrees) })
+    private val closestDegrees = max(0.0, tackAngleDegrees - (0 until field.spec.cellCount).maxOf { abs(field.shiftDegrees(field.spec.cellAt(it))) })
 
     private var best = Double.POSITIVE_INFINITY
 
@@ -356,7 +344,7 @@ private class ExhaustiveBeat(
         if (depth >= maxBoards) return
         val legs = ArrayList<Leg>(8)
         for (square in squaresAt(at)) {
-            val wind = field.at(square).shiftDegrees
+            val wind = field.shiftDegrees(square)
             for (side in TACKS) {
                 val course = Math.toRadians(wind + side * tackAngleDegrees)
                 val across = sin(course)
@@ -397,7 +385,7 @@ private class ExhaustiveBeat(
         if (arrived.isEmpty()) return Double.POSITIVE_INFINITY
         // A mark on a boundary belongs to several squares; the slowest of their winds is charged for the
         // run in, so that the enumeration never flatters itself against the finder.
-        return seconds + arrived.maxOf { approachSeconds(end, field.at(it).shiftDegrees, arrivedOn) }
+        return seconds + arrived.maxOf { approachSeconds(end, field.shiftDegrees(it), arrivedOn) }
     }
 
     /**

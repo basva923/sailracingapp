@@ -13,16 +13,21 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * One cell's wind arrow as drawn.
+ * One big square's wind arrow as drawn, in course-frame metres. The wind is worked out in squares far
+ * bigger than the ones the area is cut into - three across the course - because that is where there are
+ * enough samples to be worth calling a wind; see `WindField`.
  *
- * @property shiftDegrees the wind in the cell relative to the reference wind (the frame's up): positive = veered.
- * @property measured true when measured in the cell itself, false when worked out from the water around it.
- * @property confidence how much of that wind the cell knows of its own, from 0 (the day's average wind,
- *   wherever it was measured) to 1 (measured here, over and over): how solid the arrow is drawn.
+ * @property shiftDegrees the mean of the winds measured inside the square, relative to the reference wind
+ *   (the frame's up): positive = veered. Where nothing was measured it is the mean of everything measured
+ *   on the course, which is what the race line's simulations draw that square from.
+ * @property measured true when enough close-hauled samples were taken inside the square itself.
+ * @property confidence how much of the day's evidence this square holds, 1 once it holds its even share of
+ *   it and 0 where nobody has sailed: how solid the arrow is drawn.
  */
 data class MapArrow(
-    val column: Int,
-    val row: Int,
+    val acrossMeters: Double,
+    val upwindMeters: Double,
+    val sizeMeters: Double,
     val shiftDegrees: Double,
     val measured: Boolean,
     val confidence: Double = 0.0,
@@ -44,14 +49,13 @@ data class MapView(
     val centerUpwindMeters: Double,
     val widthMeters: Double,
     val heightMeters: Double,
-) {
-    /** How many times taller than wide this water is: how tall a map of it is worth making. */
-    val shape: Float get() = (heightMeters / widthMeters).toFloat()
-}
+)
 
 /** Everything the map draws, in course-frame metres (wind up, origin at the start line), plus the advice text. */
 data class MapUiState(
     val area: MapArea = EMPTY_AREA,
+    /** The big squares the wind is worked out in, laid over the same water; null before there is a course. */
+    val windArea: MapArea? = null,
     val view: MapView = view(EMPTY_AREA),
     val arrows: List<MapArrow> = emptyList(),
     val track: List<CoursePosition> = emptyList(),
@@ -63,6 +67,8 @@ data class MapUiState(
     val raceLineText: String = "",
     /** What the gamble is worth: the flyer and how often it beats the line to sail. Empty without a line. */
     val riskText: String = "",
+    /** The race line's cost in a few words, drawn over the map: "2 tacks · 04:37 to the mark". */
+    val raceLineGlance: String = "",
     val pinEnd: CoursePosition? = null,
     val boatEnd: CoursePosition? = null,
     val boat: CoursePosition? = null,
@@ -77,6 +83,8 @@ data class MapUiState(
     val favouredSide: FavouredSide = FavouredSide.UNKNOWN,
     val sideTitle: String = "SIDES UNKNOWN",
     val sideDetail: String = "",
+    /** The evidence for the side in a few words, for the glance panel: "Wind +4° · speed +0.3 · trend -1°". */
+    val sideGlance: String = "",
     val scaleText: String = "",
     val markText: String = "Mark: top of the area until you set it",
     val trackText: String = "No track yet",
@@ -106,6 +114,7 @@ data class MapUiState(
                 favouredSide = plan.favouredSide,
                 sideTitle = PlanText.sideTitle(plan),
                 sideDetail = PlanText.sideDetail(plan),
+                sideGlance = PlanText.sideGlance(plan),
                 trackText = if (snapshot.trackPointCount == 0) "No track yet" else "${snapshot.trackPointCount} points$duration",
                 canMarkHere = snapshot.position != null,
             )
@@ -119,15 +128,31 @@ data class MapUiState(
             } else {
                 "Mark: top of the area until you set it"
             }
+            val blocks = course.windField.spec
+            val day = course.windField.courseShiftDegrees ?: 0.0
             return common.copy(
                 area = area,
+                windArea = MapArea(blocks.leftMeters, blocks.bottomMeters, blocks.widthMeters, blocks.heightMeters, blocks.cellSizeMeters),
                 view = view(area),
-                arrows = course.windField.cells.map { MapArrow(it.cell.column, it.cell.row, it.shiftDegrees, it.measured, it.confidence) },
+                arrows = course.windField.blocks.map { block ->
+                    val centre = blocks.center(block.cell)
+                    MapArrow(
+                        acrossMeters = centre.acrossMeters,
+                        upwindMeters = centre.upwindMeters,
+                        sizeMeters = blocks.cellSizeMeters,
+                        shiftDegrees = block.meanShiftDegrees ?: day,
+                        measured = block.measured,
+                        // An even share of the day's samples is as sure as a square gets: what the sailor
+                        // wants to see is which squares were actually sailed, not a fraction of a ninth.
+                        confidence = (block.share * blocks.cellCount).coerceAtMost(1.0),
+                    )
+                },
                 track = course.trackPositions,
                 raceLine = course.racePlan.safe.points,
                 riskyLine = if (course.racePlan.agree) emptyList() else course.racePlan.fast.points,
                 raceLineText = raceLineText(course.racePlan),
                 riskText = riskText(course.racePlan),
+                raceLineGlance = raceLineGlance(course.racePlan),
                 pinEnd = course.pinEnd,
                 boatEnd = course.boatEnd,
                 boat = course.boat,
@@ -137,23 +162,25 @@ data class MapUiState(
                 northDegrees = frame.toCourseBearing(0.0),
                 starboardHeadingDegrees = frame.toCourseBearing(snapshot.targetHeadings.starboardUpwind),
                 portHeadingDegrees = frame.toCourseBearing(snapshot.targetHeadings.portUpwind),
-                scaleText = scaleText(area, course.inputs.settings.grid.cellSizeMeters),
+                scaleText = scaleText(area, course.inputs.settings.grid.cellSizeMeters, blocks.cellSizeMeters),
                 markText = markText,
                 canSetMarkFromLine = true,
             )
         }
 
         /**
-         * "Area 240 m × 600 m, wind up · 50 m squares": how big the racing area is and how finely it is
-         * cut up, saying so when the size the sailor chose had to be enlarged to keep the area searchable.
+         * "Area 240 m × 600 m, wind up · 50 m squares · wind in 80 m blocks": how big the racing area is,
+         * how finely it is cut up - saying so when the size the sailor chose had to be enlarged to keep the
+         * area searchable - and how big the squares are that the wind itself is worked out in.
          */
-        fun scaleText(area: MapArea, chosenCellMeters: Double?): String {
+        fun scaleText(area: MapArea, chosenCellMeters: Double?, windCellMeters: Double? = null): String {
             val squares = if (chosenCellMeters != null && chosenCellMeters < area.cellMeters) {
                 "${Formatters.meters(area.cellMeters)} squares, enlarged from ${Formatters.meters(chosenCellMeters)} to fit"
             } else {
                 "${Formatters.meters(area.cellMeters)} squares"
             }
-            return "Area ${Formatters.meters(area.widthMeters)} × ${Formatters.meters(area.heightMeters)}, wind up · $squares"
+            val wind = windCellMeters?.let { " · wind in ${Formatters.meters(it)} blocks" } ?: ""
+            return "Area ${Formatters.meters(area.widthMeters)} × ${Formatters.meters(area.heightMeters)}, wind up · $squares$wind"
         }
 
         /** "Race line: 2 tacks · 04:37 to the mark, 05:02 on a bad day": what the drawn line costs. */
@@ -162,6 +189,10 @@ data class MapUiState(
             val line = plan.safe
             return "Race line: ${tacks(line)} · ${time(line.seconds)} to the mark, ${time(plan.safeRisk.badSeconds)} on a bad day"
         }
+
+        /** "2 tacks · 04:37 to the mark": the same, short enough to sit on the map itself. */
+        fun raceLineGlance(plan: RaceLinePlan): String =
+            if (plan.isEmpty) "" else "${tacks(plan.safe)} · ${time(plan.safe.seconds)} to the mark"
 
         /**
          * What the flyer is worth: the line that pays most when the wind is kind, and how often it did over

@@ -54,11 +54,15 @@
     ([LOGGING.md](LOGGING.md)).
   - UI: one `RaceViewModel`; each screen has a pure `XxxUiState.from(snapshot)` mapper so the screen only
     recomposes when visible text changes, even though snapshots arrive four times a second. Screens: Session
-    (start, end and clear the session; the landing screen), Start, Race and Settings. The Race screen is the
-    map (`CourseMap`, the whole racing area scaled to the room it has, given the height that area can use)
-    with everything else scrolling underneath it: the tack advice, the side, what the race line costs, the
-    numbers, the wind buttons, the mark and the statistics. It is fed by both `MapUiState` and
-    `WindUiState`. At the gun the root switches to it.
+    (start, end and clear the session; the landing screen), Start, Race and Settings. The Race screen
+    (`RaceScreen`, laid out by `GlanceLayout`) never scrolls: the map (`CourseMap`, the whole racing area
+    scaled to the room it has) on top or on the left, and pinned under or beside it the glance panel - the
+    tack advice and the side as big words with a short reason each (`PlanText.tackGlance`/`sideGlance`),
+    the speed against the average on the current point of sail, and the shift with a ±20° strip of the
+    histogram - in cells (`GlanceCell`) whose text shrinks to the row they are given, so a short landscape
+    screen still holds them all. *More* in the bar below swaps the map for the scrolling details (the rose,
+    the numbers, the wind and mark buttons, the full charts) and leaves the panel where it is. It is fed by
+    both `MapUiState` and `WindUiState`. At the gun the root switches to it.
   - The map's fingers: `MapCamera` is the pure value (zoom, and how far the middle has been moved, clamped
     so the area cannot be pushed off the screen) and `MapProjection` turns course metres into pixels and
     back. A pinch is one coroutine fed a stream of little movements, each of which has to build on the last,
@@ -89,18 +93,20 @@
   at the tack angle to the wind of that square and at the speed measured there, never leaving the area and
   never giving away any of the beat still to sail (which is what makes the boat tack on the layline, at any
   tack angle), with a tack charged the time it throws away - including the first board, when it is not the
-  tack the boat is on. That search is run through 16 winds drawn from the per-cell distributions, spread out
-  from the wind the boat is measuring right now and correlated over about 150 m, and every candidate line is
-  then timed through all 16: the line with the least bad bad day is drawn green, and the one with the best
-  good day, when that is worth more than a tack, amber. It is all done again when the boat enters a new
-  square or the wind it is measuring moves 5°. [RACE_LINE.md](RACE_LINE.md) is the whole algorithm, and
+  tack the boat is on. That search is run through 16 of the 1000 winds drawn over the course, and every
+  candidate line is then timed through all 1000: the line with the least bad bad day is drawn green, and the
+  one with the best good day, when that is worth more than a tack, amber - neither unless it betters the
+  line through the mean wind by a tack. It is all done again when the boat enters a new square or the wind
+  it is measuring moves 5°. [RACE_LINE.md](RACE_LINE.md) is the whole algorithm, and
   [RACE_LINE_GALLERY.md](RACE_LINE_GALLERY.md) shows ten courses it was checked against by eye.
-- Every square of the racing area gets a wind, sailed through or not: its own samples (worth `n / wander²`),
-  the samples around it (gathered into one measurement, weighed by `exp(-distance / correlationLength)` and
-  capped by what that distance can be worth) and the wind measured over the whole course (worth
-  `1 / spatialSpread²`), blended by precision. A square's spread is how much its wind wandered plus how
-  uncertain its mean still is, which is what makes an unsailed corner a gamble in the Monte Carlo and a
-  faint arrow on the map. The dials are `WindFieldSettings`, under `RaceSettings.course`.
+- The wind is kept in **big squares** - three across the racing area and as many rows as it is tall - not in
+  the squares the track is binned onto, because a race sailed up the middle leaves those with a handful of
+  samples each. Each big square holds a histogram of the shifts measured in it, a histogram of the boat
+  speeds, and its share of the day's samples; a drawn wind takes each square from the wind of the moment
+  (35 %, over the whole course at once), from that square's own histogram and the whole course's (60 %,
+  split by its share) or from anywhere on the compass (5 %). Nothing is smoothed or borrowed between
+  squares, and every square of the fine grid takes the wind of the big square it lies in. The dials are
+  `WindFieldSettings`, under `RaceSettings.course`.
 - The windward mark is set at the boat, or by bearing and distance from the middle of the line (from the boat
   without a line), and persisted; without one the middle of the top edge of the racing area is used.
 - The compass heading is the bearing of the back of the phone (device -z axis), which is where the bow points

@@ -52,11 +52,14 @@ object Formatters {
     fun knotsToMetersPerSecond(knots: Double): Double = knots / METERS_PER_SECOND_TO_KNOTS
 
     /** Signed knots with one decimal: "+0.3 kn", "-1.2 kn", "0.0 kn". */
-    fun signedKnots(metersPerSecond: Double): String {
+    fun signedKnots(metersPerSecond: Double): String = "${signedKnotsValue(metersPerSecond)} kn"
+
+    /** Signed knots without the unit, for where the unit is already on the screen: "+0.3", "-1.2", "0.0". */
+    fun signedKnotsValue(metersPerSecond: Double): String {
         val knots = metersPerSecond * METERS_PER_SECOND_TO_KNOTS
         val rounded = String.format(Locale.ROOT, "%.1f", abs(knots))
         val sign = if (rounded == "0.0") "" else if (knots > 0) "+" else "-"
-        return "$sign$rounded kn"
+        return "$sign$rounded"
     }
 
     /** Compass degrees, three digits: "005°". */

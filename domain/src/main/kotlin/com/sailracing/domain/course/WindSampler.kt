@@ -1,169 +1,265 @@
 package com.sailracing.domain.course
 
 import com.sailracing.domain.geo.Angles
-import com.sailracing.domain.stats.Gaussian
-import kotlin.math.exp
-import kotlin.math.hypot
-import kotlin.math.sqrt
+import com.sailracing.domain.wind.SpeedHistogram
+import com.sailracing.domain.wind.WindHistogram
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * One wind the race course might have: a direction and a close-hauled boat speed for every square, drawn
- * from what was measured there. One run of the Monte Carlo sails through one of these.
+ * One wind the racing area might have: a direction and a close-hauled boat speed for every square of it.
+ * One run of the Monte Carlo sails through one of these.
+ *
+ * The wind is drawn per big square of [blocks] - that is where there are enough samples to draw from - and
+ * read per square of [spec], the finer grid the race line is searched over, so that the geometry of a line
+ * stays as sharp as the area is cut while its wind stays as coarse as the evidence for it.
  */
 public class SampledConditions internal constructor(
     override val spec: GridSpec,
+    /** The big squares the wind was drawn in. */
+    public val blocks: GridSpec,
+    private val blockOfCell: IntArray,
     private val shifts: DoubleArray,
     private val speeds: DoubleArray,
 ) : SailingConditions {
 
-    override fun shiftDegrees(cell: GridCell): Double = shifts[spec.index(cell)]
+    override fun shiftDegrees(cell: GridCell): Double = shifts[blockOfCell[spec.index(cell)]]
 
-    override fun speedMps(cell: GridCell): Double = speeds[spec.index(cell)]
+    override fun speedMps(cell: GridCell): Double = speeds[blockOfCell[spec.index(cell)]]
 
-    override fun toString(): String = "SampledConditions(spec=$spec)"
+    /** The wind drawn in one big square, in degrees off the reference. */
+    public fun blockShiftDegrees(block: GridCell): Double = shifts[blocks.index(block)]
+
+    /** The close-hauled speed drawn in one big square. */
+    public fun blockSpeedMps(block: GridCell): Double = speeds[blocks.index(block)]
+
+    override fun toString(): String = "SampledConditions(spec=$spec, blocks=$blocks)"
 }
 
 /**
- * Draws a whole racing area's wind out of what has been measured of it.
+ * Draws whole winds over the racing area out of what has been measured of it.
  *
- * ## What a square's wind is worth
+ * ## What one big square is drawn from
  *
- * Every square already carries a mean and a spread, blended out of its own samples, the samples around it
- * and the wind over the whole course: that is [WindField]'s work, and this draws from what it says.
+ * Four things, and the dice decide which of them a square blows this time round
+ * ([WindFieldSettings]):
  *
- * ## What the wind of the moment is worth
+ * 1. **the wind the boat is measuring right now**, in [WindFieldSettings.currentWindFraction] of the draws
+ *    (35% by default). Its own heading and tack angle are the freshest measurement of the day, and a beat
+ *    is planned in the wind you are in, not the wind you averaged an hour ago. Without one - the boat is
+ *    not close-hauled and its heading says nothing about the wind - this share goes to the histograms;
+ * 2. **the histogram of this square itself**, in [WindFieldSettings.measuredFraction] of the draws
+ *    (60%) times [BlockWind.share], the square's share of every sample taken on the course;
+ * 3. **the histogram of the whole course**, in the rest of that 60%. So a square where half the race was
+ *    sailed mostly blows its own wind, a square nobody went near blows the day's wind, and nothing had to
+ *    be smoothed, borrowed or interpolated to say so;
+ * 4. **anything at all**, in [WindFieldSettings.randomWindFraction] of the draws (5%): a direction drawn
+ *    flat around the compass. It is the shift nobody saw coming, and it is what a line has to survive to
+ *    be called safe.
  *
- * The boat is sailing close-hauled right now, so its heading and its tack angle are a measurement of the
- * wind *here, now* - the freshest there is. It is worth more than the square's own mean, so the square the
- * boat is in is drawn around a mean pulled [RaceLineSettings.currentWindWeight] of the way onto it, and
- * with its spread cut by the same confidence. That belief does not stop at the square: it fades away over
- * [RaceLineSettings.currentWindRangeMeters], because the header the boat is in now says a lot about the
- * water just ahead and little about the far corner.
+ * A direction from a histogram is drawn from *exactly* the distribution it holds - a bin in proportion to
+ * its count, and anywhere inside that bin - never from a bell curve fitted over it. A wind that has been
+ * oscillating between two shifts is drawn as one shift or the other, which is what it does, instead of as
+ * the middle it never blows.
  *
- * ## Why the squares do not come out as a chequerboard
+ * ## What that leaves the squares looking like
  *
- * Wind is not independent from square to square: it comes in shifts hundreds of metres wide. So the field
- * is not drawn square by square but as one correlated whole: independent draws are run through a first
- * order filter across the area and then up it, which leaves every square with exactly the spread it should
- * have and any two of them correlated by `exp(-distance / correlationLength)`, counted in squares along
- * and up. A drawn wind is therefore a few broad shifts lying over the course, which is what a wind looks
- * like, and never a speckle.
+ * Every big square is drawn on its own, so one drawn wind is not a single shift laid over the whole course:
+ * it is the left, the middle and the right of it each doing their own thing, which is the situation the
+ * race line is there to judge. A block is about a third of the width of the racing area - the scale a shift
+ * actually has - so treating one as independent of the next is honest, where the same assumption over 20 m
+ * squares would have been a chequerboard.
  *
- * That is also how the wind of the moment reaches the squares around the boat. It is not carried from
- * square to square as the search walks outwards; it moves the mean of every square by how far away that
- * square is and narrows the ones nearest the boat, and the correlation of the field then keeps whatever is
- * drawn on top of that hanging together.
- *
- * The boat speeds are drawn the same way and at the same time, from each square's speed histogram rather
- * than from a bell curve, so a corner that is half puff and half hole is drawn as a puff or as a hole and
- * never as its mean. The two draws are independent: a square being shifted says nothing here about it
- * being windy.
+ * The boat speeds are drawn alongside and independently: from the square's own speed histogram or the whole
+ * course's, by the same share, so a corner that was half puff and half hole comes out as a puff or a hole
+ * and never as its mean. A square that swung 20 degrees is not thereby a windy one.
  */
-public object WindSampler {
+public class WindSampler private constructor(
+    private val field: WindField,
+    /** The wind the boat is measuring now, or the reference wind when it is measuring none - which is worth nothing. */
+    private val currentShiftDegrees: Double,
+    /** How many of the simulated winds are that wind of the moment, over the whole course. */
+    private val currentWeight: Double,
+    private val blocks: Array<Block>,
+    private val courseWinds: WindHistogram.Draws?,
+    private val courseSpeeds: Speeds?,
+) {
 
-    /**
-     * One drawn wind over [field], for a boat at [from] measuring [currentShiftDegrees] right now (null
-     * when it is not sailing close-hauled and has nothing to say about the wind).
-     */
-    public fun sample(
-        field: WindField,
-        from: CoursePosition,
-        currentShiftDegrees: Double? = null,
-        settings: RaceLineSettings = RaceLineSettings(),
-        random: Random = Random(settings.seed),
-    ): SampledConditions = draw(field, from, currentShiftDegrees, settings, random)
-
-    /**
-     * The wind without the chance: every square at its mean, pulled onto the wind of the moment the same
-     * way a drawn one is. It is the wind the race line was searched in before there was a Monte Carlo, and
-     * it is the candidate line the simulations are compared against.
-     */
-    public fun mean(
-        field: WindField,
-        from: CoursePosition,
-        currentShiftDegrees: Double? = null,
-        settings: RaceLineSettings = RaceLineSettings(),
-    ): SampledConditions = draw(field, from, currentShiftDegrees, settings, random = null)
-
-    /** How much the wind measured at the boat right now is believed [distanceMeters] away from it. */
-    public fun currentWindWeight(distanceMeters: Double, settings: RaceLineSettings): Double =
-        settings.currentWindWeight * exp(-distanceMeters / settings.currentWindRangeMeters)
-
-    private fun draw(
-        field: WindField,
-        from: CoursePosition,
-        currentShiftDegrees: Double?,
-        settings: RaceLineSettings,
-        random: Random?,
-    ): SampledConditions {
-        val spec = field.spec
-        val count = spec.cellCount
+    /** One wind over the whole area, drawn with [random]. */
+    public fun draw(random: Random): SampledConditions {
+        // The wind of the moment is one measurement of one moment, so it is drawn once for the whole
+        // course: in that share of the simulations every square blows it, in the rest none of them does.
+        // A square still blows it in exactly [WindFieldSettings.currentWindFraction] of the simulations -
+        // what changes is that the shift the boat is sitting in is a shift over the water and not a
+        // scattering of squares that happen to agree.
+        val now = currentWeight > 0.0 && random.nextDouble() < currentWeight
+        val count = blocks.size
         val shifts = DoubleArray(count)
         val speeds = DoubleArray(count)
-        val correlationLengthMeters = field.settings.correlationLengthMeters
-        val windDeviates = correlatedField(spec, correlationLengthMeters, random)
-        val speedDeviates = correlatedField(spec, correlationLengthMeters, random)
-        val boat = spec.center(spec.nearestCell(from))
-
         for (index in 0 until count) {
-            val cell = spec.cellAt(index)
-            val measured = field.at(cell)
-            val centre = spec.center(cell)
-            val weight = if (currentShiftDegrees == null) {
-                0.0
-            } else {
-                currentWindWeight(hypot(centre.acrossMeters - boat.acrossMeters, centre.upwindMeters - boat.upwindMeters), settings)
-            }
-            val mean = measured.shiftDegrees + weight * Angles.signedDifference(measured.shiftDegrees, currentShiftDegrees ?: 0.0)
-            // Knowing the wind here now does not only move the square's mean, it narrows it: the closer to
-            // the boat, the less is left to chance.
-            val spread = measured.spreadDegrees * sqrt(1.0 - weight)
-            shifts[index] = mean + spread * windDeviates[index]
-            speeds[index] = speedMps(measured, settings, if (random == null) null else Gaussian.cdf(speedDeviates[index]))
+            val block = blocks[index]
+            shifts[index] = if (now) currentShiftDegrees else drawShift(block, random)
+            speeds[index] = drawSpeed(block, random)
         }
-        return SampledConditions(spec, shifts, speeds)
+        return conditions(shifts, speeds)
     }
 
     /**
-     * A field of standard normal deviates over the whole area - mean nothing, spread one - in which two
-     * squares are correlated by `exp(-distance / correlationLength)`, the distance counted along the area
-     * and up it. Independent draws are filtered along every row and then up every column, each square
-     * keeping [WindFieldSettings.correlationLengthMeters] worth of the one before it and the rest of its
-     * spread left to chance: two passes of a first order filter, and the spread of every square survives
-     * them exactly. All zero when there is nothing to draw with, which is what makes the mean field.
+     * The wind without the chance: every big square at the mean of everything it might have been drawn as,
+     * the four sources weighed exactly as they are weighed in a draw (a flat draw round the compass has no
+     * mean, so it pulls nowhere). The beat searched in it is the plain answer to the wind as it stands, and
+     * the line every simulated one is measured against.
      */
-    private fun correlatedField(spec: GridSpec, correlationLengthMeters: Double, random: Random?): DoubleArray {
-        val values = DoubleArray(spec.cellCount) { normal(random) }
-        if (random == null) return values
-        val coupling = exp(-spec.cellSizeMeters / correlationLengthMeters)
-        val chance = sqrt(1.0 - coupling * coupling)
-        for (row in 0 until spec.rows) {
-            for (column in 1 until spec.columns) {
-                val index = row * spec.columns + column
-                values[index] = coupling * values[index - 1] + chance * values[index]
-            }
+    public val mean: SampledConditions by lazy {
+        conditions(
+            DoubleArray(blocks.size) { blocks[it].meanShiftDegrees },
+            DoubleArray(blocks.size) { blocks[it].meanSpeedMps },
+        )
+    }
+
+    private fun conditions(shifts: DoubleArray, speeds: DoubleArray): SampledConditions =
+        SampledConditions(field.cellSpec, field.spec, field.blockOfCell, shifts, speeds)
+
+    /**
+     * Which of the other three winds this square blows this time round, and what it is: its own histogram,
+     * the whole course's, or anything at all. The three are weighed against each other as they are weighed
+     * in the mixture, the wind of the moment having already had its turn over the whole course.
+     */
+    private fun drawShift(block: Block, random: Random): Double {
+        val chance = random.nextDouble()
+        val histogram = when {
+            chance < block.ownLimit -> block.winds
+            chance < block.courseLimit -> courseWinds
+            else -> return random.nextDouble(-HALF_TURN_DEGREES, HALF_TURN_DEGREES)
         }
-        for (row in 1 until spec.rows) {
-            for (column in 0 until spec.columns) {
-                val index = row * spec.columns + column
-                values[index] = coupling * values[index - spec.columns] + chance * values[index]
-            }
-        }
-        return values
+        // Nothing measured anywhere on the course leaves only the reference wind to fall back on, which is
+        // the one thing the sailor did tell the app.
+        return histogram?.let { shift(it.next(random)) } ?: 0.0
+    }
+
+    private fun drawSpeed(block: Block, random: Random): Double {
+        // Its own speeds or the course's, by the same share as its winds - and the course's either way when
+        // it was sailed through without a speed to show for it.
+        val speeds = (if (random.nextDouble() < block.share) block.speeds ?: courseSpeeds else courseSpeeds)
+            ?: return SailingConditions.DEFAULT_BOAT_SPEED_MPS
+        return speeds.next(random, field.settings)
     }
 
     /**
-     * The speed drawn at [fraction] of the square's histogram, or its mean when there is nothing to draw.
-     * The draw is taken as a deviation from the histogram's own mean and added to the square's exact mean
-     * speed, so that binning the speeds moves the shape of the draw and never the speed it is drawn around.
+     * One big square made ready to draw from: what it draws from, and the weights of the three winds that
+     * are its own business as running totals - already divided by what the wind of the moment left over,
+     * because by the time these are read that draw has been lost.
      */
-    private fun speedMps(cell: CellWind, settings: RaceLineSettings, fraction: Double?): Double {
-        val histogramMean = cell.speeds.meanMps
-        if (fraction == null || histogramMean == null) return cell.speedMps.coerceAtLeast(settings.minBoatSpeedMps)
-        val drawn = cell.speedMps + settings.speedSpreadFactor * (cell.speeds.quantile(fraction) - histogramMean)
-        return drawn.coerceAtLeast(settings.minBoatSpeedMps)
+    private class Block(
+        val ownLimit: Double,
+        val courseLimit: Double,
+        val share: Double,
+        val winds: WindHistogram.Draws?,
+        val speeds: Speeds?,
+        val meanShiftDegrees: Double,
+        val meanSpeedMps: Double,
+    )
+
+    /** Speeds made ready to draw from: the speed they average, and the shape they scatter in around it. */
+    internal class Speeds(private val histogram: SpeedHistogram, val meanMps: Double, private val binnedMeanMps: Double) {
+
+        /**
+         * One speed, drawn from the histogram's own shape but only [WindFieldSettings.speedSpreadFactor] as
+         * far from the mean: a board across a square averages a handful of the seconds it was measured in.
+         * The draw is taken as a deviation from the histogram's own mean and added to the exact one, so that
+         * binning the speeds moves the shape of the draw and never the speed it is drawn around.
+         */
+        fun next(random: Random, settings: WindFieldSettings): Double {
+            val drawn = meanMps + settings.speedSpreadFactor * (histogram.quantile(random.nextDouble()) - binnedMeanMps)
+            return drawn.coerceAtLeast(settings.minBoatSpeedMps)
+        }
+
+        companion object {
+            fun of(stats: SpeedStats): Speeds? {
+                val mean = stats.meanMps ?: return null
+                return Speeds(stats.histogram, mean, stats.histogram.meanMps ?: mean)
+            }
+        }
     }
 
-    private fun normal(random: Random?): Double = if (random == null) 0.0 else Gaussian.sample(random)
+    public companion object {
+
+        /** Half a turn: how far either way a wind drawn flat around the compass can land. */
+        private const val HALF_TURN_DEGREES: Double = 180.0
+
+        /**
+         * [field] made ready to draw winds from, for a boat measuring [currentShiftDegrees] right now (off
+         * the reference wind; null when it is not beating and has nothing to say about the wind). The
+         * mixture of every big square is worked out once here and drawn from as often as the Monte Carlo
+         * asks, which is what makes a thousand simulated winds cost less than one searched beat.
+         */
+        public fun of(field: WindField, currentShiftDegrees: Double? = null): WindSampler {
+            val settings = field.settings
+            val courseWinds = field.courseWinds
+            val courseSpeeds = Speeds.of(field.courseSpeeds)
+            val current = if (currentShiftDegrees == null) 0.0 else settings.currentWindFraction
+            // What the wind of the moment does not take is what the histograms are worth; chance keeps its
+            // own share whatever else is known.
+            val measured = 1.0 - settings.randomWindFraction - current
+            // What is left once the wind of the moment has had its share of the simulations: the histograms
+            // and chance, weighed against one another rather than against everything.
+            val rest = 1.0 - current
+            val blocks = Array(field.spec.cellCount) { index ->
+                val block = field.at(field.spec.cellAt(index))
+                val own = measured * block.share
+                val course = measured * (1.0 - block.share)
+                val speeds = Speeds.of(block.speeds)
+                Block(
+                    ownLimit = if (rest <= 0.0) 0.0 else own / rest,
+                    courseLimit = if (rest <= 0.0) 0.0 else (own + course) / rest,
+                    share = block.share,
+                    winds = block.winds.draws(),
+                    speeds = speeds,
+                    meanShiftDegrees = meanShift(current, currentShiftDegrees, own, block.winds, course, courseWinds),
+                    meanSpeedMps = meanSpeed(block.share, speeds, courseSpeeds, settings),
+                )
+            }
+            return WindSampler(field, currentShiftDegrees ?: 0.0, current, blocks, courseWinds.draws(), courseSpeeds)
+        }
+
+        /** The four winds added up as vectors, each as long as its weight and as sure as its histogram. */
+        private fun meanShift(
+            currentWeight: Double,
+            currentShiftDegrees: Double?,
+            ownWeight: Double,
+            ownWinds: WindHistogram,
+            courseWeight: Double,
+            courseWinds: WindHistogram,
+        ): Double {
+            var cosine = 0.0
+            var sine = 0.0
+            fun add(weight: Double, degrees: Double?, concentration: Double) {
+                if (weight <= 0.0 || degrees == null) return
+                val radians = Angles.toRadians(degrees)
+                cosine += weight * concentration * cos(radians)
+                sine += weight * concentration * sin(radians)
+            }
+            add(currentWeight, currentShiftDegrees, 1.0)
+            add(ownWeight, ownWinds.meanDirection(), ownWinds.concentration)
+            add(courseWeight, courseWinds.meanDirection(), courseWinds.concentration)
+            if (cosine == 0.0 && sine == 0.0) return 0.0
+            return Angles.signedDifference(0.0, Angles.toDegrees(atan2(sine, cosine)))
+        }
+
+        /**
+         * The square's own mean speed and the course's, weighed by the same share the winds are. The
+         * course's speeds are every square's, so a square with speeds of its own is never alone with them,
+         * and a square without any is simply the course's.
+         */
+        private fun meanSpeed(share: Double, own: Speeds?, course: Speeds?, settings: WindFieldSettings): Double {
+            val mean = course?.let { share * (own?.meanMps ?: it.meanMps) + (1.0 - share) * it.meanMps }
+                ?: SailingConditions.DEFAULT_BOAT_SPEED_MPS
+            return mean.coerceAtLeast(settings.minBoatSpeedMps)
+        }
+
+        /** A drawn direction, off the reference wind: the histograms hold shifts, wrapped onto the compass. */
+        private fun shift(drawnDegrees: Double): Double = Angles.signedDifference(0.0, drawnDegrees)
+    }
 }

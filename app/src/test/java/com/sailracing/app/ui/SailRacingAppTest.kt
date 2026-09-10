@@ -53,18 +53,23 @@ class SailRacingAppTest {
         compose.waitForIdle()
 
         compose.onNodeWithTag("nav_RACE").performClick()
-        compose.onNodeWithTag("configuredWind").assertIsDisplayed()
+        compose.onNodeWithTag("courseMap").assertIsDisplayed()
+        // The wind and the mark are set from the details, in the map's place.
+        compose.onNodeWithTag("toggleDetails").performClick()
+        compose.onNodeWithTag("configuredWind").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("windFromStarboard").performScrollTo().performClick()
         graph.scheduler.runCurrent()
         assertEquals(0, graph.raceSession.state.value.wind.settings.directionDegrees)
 
-        compose.onNodeWithTag("compassRose").assertIsDisplayed()
+        compose.onNodeWithTag("compassRose").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("windFromPort").performScrollTo().performClick()
         graph.scheduler.runCurrent()
         assertEquals(270, graph.raceSession.state.value.wind.settings.directionDegrees)
 
-        compose.onNodeWithTag("nav_RACE").performClick()
+        // Back to the map, and to the details again for the mark.
+        compose.onNodeWithTag("toggleDetails").performClick()
         compose.onNodeWithTag("courseMap").assertIsDisplayed()
+        compose.onNodeWithTag("toggleDetails").performClick()
         compose.onNodeWithTag("markHere").performScrollTo().performClick()
         graph.scheduler.runCurrent()
         assertEquals(GeoPoint(51.14, 5.83), graph.raceSession.state.value.windwardMark)

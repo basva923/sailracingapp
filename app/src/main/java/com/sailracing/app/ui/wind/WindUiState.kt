@@ -38,9 +38,18 @@ data class WindUiState(
     /** The estimated wind relative to the reference: the mean wind, or the set wind while there is no histogram. */
     val shift: String = Formatters.PLACEHOLDER,
     val shiftDegrees: Double? = null,
+    /** What the shift is measured from: "Shift vs mean" once there is a histogram, "Shift vs set wind" before. */
+    val shiftTitle: String = "Shift vs set wind",
     val heading: String = Formatters.PLACEHOLDER,
     val headingSource: String = "",
     val speed: String = Formatters.PLACEHOLDER,
+    /**
+     * The speed against the average on this point of sail, "+0.3 vs avg 5.5", judged only while the boat
+     * is on the angle the average was taken on; otherwise the average alone, or why there is none.
+     */
+    val speedDelta: String = "",
+    /** The same difference in m/s, for the colour: null when the speed is not being judged. */
+    val speedDeltaMps: Double? = null,
     val vmg: String = Formatters.PLACEHOLDER,
     val tack: Tack? = null,
     val tackLabel: String = "",
@@ -52,6 +61,8 @@ data class WindUiState(
     val advice: TackAdvice = TackAdvice.UNKNOWN,
     val adviceTitle: String = "—",
     val adviceDetail: String = "Waiting for a heading",
+    /** The reason in a few words, for the glance panel: "Stbd lifted 5°". */
+    val adviceGlance: String = "No heading",
     // Charts, all relative to the reference wind (bin 0 in the middle).
     val histogramCaption: String = "Wind direction frequency, ±$HISTOGRAM_HALF_WIDTH° around the set wind",
     val histogram: List<HistogramBin> = emptyList(),
@@ -89,6 +100,21 @@ data class WindUiState(
             }
             val stats = snapshot.speedStats
             val sailing = snapshot.sailing
+            val speed = snapshot.speedMps
+            val average = when (sailing?.pointOfSail) {
+                PointOfSail.UPWIND -> stats.upwind.mean
+                PointOfSail.DOWNWIND -> stats.downwind.mean
+                null -> null
+            }
+            // The average is of the boat on its close-hauled or downwind angle, so the speed is only
+            // judged against it while the boat is there - the same test the tack advice needs.
+            val onAngle = plan.tackAdvice != TackAdvice.UNKNOWN
+            val speedDelta = when {
+                speed == null -> ""
+                average == null -> "No average yet"
+                !onAngle -> "Avg ${Formatters.knots(average)}"
+                else -> "${Formatters.signedKnotsValue(speed - average)} vs avg ${Formatters.knotsValue(average)}"
+            }
             return WindUiState(
                 headingDegrees = snapshot.headingDegrees,
                 windDegrees = wind.directionDegrees,
@@ -104,13 +130,16 @@ data class WindUiState(
                 estimatedWind = snapshot.estimatedWindDegrees?.let(Formatters::degrees) ?: Formatters.PLACEHOLDER,
                 shift = plan.shiftFromReferenceDegrees?.let(Formatters::signedDegrees) ?: Formatters.PLACEHOLDER,
                 shiftDegrees = plan.shiftFromReferenceDegrees,
+                shiftTitle = if (plan.referenceIsMeasured) "Shift vs mean" else "Shift vs set wind",
                 heading = snapshot.headingDegrees?.let(Formatters::degrees) ?: Formatters.PLACEHOLDER,
                 headingSource = when (snapshot.headingSource) {
                     HeadingSource.COURSE_OVER_GROUND -> "GPS course"
                     HeadingSource.COMPASS -> "Compass"
                     null -> ""
                 },
-                speed = snapshot.speedMps?.let(Formatters::knotsValue) ?: Formatters.PLACEHOLDER,
+                speed = speed?.let(Formatters::knotsValue) ?: Formatters.PLACEHOLDER,
+                speedDelta = speedDelta,
+                speedDeltaMps = if (speed != null && average != null && onAngle) speed - average else null,
                 vmg = snapshot.vmgMps?.let(Formatters::knotsValue) ?: Formatters.PLACEHOLDER,
                 tack = sailing?.tack,
                 tackLabel = sailing?.let(::tackLabel) ?: "",
@@ -127,6 +156,7 @@ data class WindUiState(
                 advice = plan.tackAdvice,
                 adviceTitle = PlanText.tackTitle(plan),
                 adviceDetail = PlanText.tackDetail(plan),
+                adviceGlance = PlanText.tackGlance(plan),
                 histogramCaption = "Wind direction frequency, ±$HISTOGRAM_HALF_WIDTH° around the $referenceName wind",
                 histogram = histogram.window(reference.roundToInt(), HISTOGRAM_HALF_WIDTH),
                 estimatedOffset = snapshot.shiftDegrees,

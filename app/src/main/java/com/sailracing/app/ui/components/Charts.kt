@@ -23,7 +23,9 @@ import kotlin.math.roundToInt
 /**
  * Bar chart of how often each wind direction (relative to the reference wind, bin 0 in the middle) was
  * observed while sailing upwind. The reference (the histogram's weighted centre once measured) is the
- * white line in the middle, the set wind a blue line where it sits relative to it, the current estimate amber.
+ * white line in the middle, the set wind a blue line where it sits relative to it, the current estimate
+ * amber. A marker beyond the window is drawn on its edge: a wind off the chart is still a wind to the right
+ * or the left of everything measured.
  */
 @Composable
 fun HistogramChart(
@@ -32,9 +34,10 @@ fun HistogramChart(
     modifier: Modifier = Modifier,
     setOffsetDegrees: Double? = null,
     emptyText: String = "Sail upwind to build the wind histogram",
+    testTag: String = "histogramChart",
 ) {
     val maxCount = bins.maxOfOrNull { it.count } ?: 0
-    Box(modifier = modifier.testTag("histogramChart")) {
+    Box(modifier = modifier.testTag(testTag)) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val chart = chartArea(size)
             drawAxis(chart, bins.first().offsetDegrees, bins.last().offsetDegrees)
@@ -122,9 +125,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawAxis(chart: Cha
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMarker(chart: ChartArea, bins: List<HistogramBin>, offset: Double, color: Color) {
     val first = bins.first().offsetDegrees
     val last = bins.last().offsetDegrees
-    if (offset < first || offset > last) return
+    val clamped = offset.coerceIn(first.toDouble(), last.toDouble())
     val span = (last - first).coerceAtLeast(1)
-    val x = chart.left + chart.width * ((offset - first) / span).toFloat() + chart.width / bins.size / 2
+    val x = chart.left + chart.width * ((clamped - first) / span).toFloat() + chart.width / bins.size / 2
     drawLine(color, Offset(x, chart.top), Offset(x, chart.top + chart.height), 3f)
 }
 

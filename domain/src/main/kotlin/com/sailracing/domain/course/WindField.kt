@@ -2,346 +2,182 @@ package com.sailracing.domain.course
 
 import com.sailracing.domain.geo.Angles
 import com.sailracing.domain.wind.SpeedHistogram
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.exp
-import kotlin.math.min
-import kotlin.math.sin
-import kotlin.math.sqrt
+import com.sailracing.domain.wind.WindHistogram
+import kotlin.math.roundToInt
 
 /**
- * What one square of the racing area is believed to blow, relative to the frame's wind (the reference):
- * positive = veered (clockwise). It is never only what was measured inside the square - see [WindField].
+ * The close-hauled speeds measured somewhere: their shape, and the speed they average.
  *
- * @property shiftDegrees the wind here: the square's own samples, the samples around it and the wind over
- *   the whole course, weighed by how much each of them is worth.
- * @property spreadDegrees how far the wind here may be off that: how much it wandered while it was
- *   measured, plus how uncertain the mean itself still is. Never nothing, never a lottery
- *   ([WindFieldSettings.minSpreadDegrees], [WindFieldSettings.maxSpreadDegrees]).
- * @property samples how many close-hauled samples were taken inside this square itself.
- * @property measured true when that is [WindFieldSettings.minCellSamples] or more: what the map draws a
- *   bolder arrow for. The wind itself is worked out the same way either way.
- * @property confidence how much the measurements narrowed the square down, from 0 (nothing known here
- *   beyond the wind over the whole course) to 1 (its mean is pinned exactly).
- * @property speedMps the close-hauled speed to expect here, blended the same way, or
- *   [SailingConditions.DEFAULT_BOAT_SPEED_MPS] where no speed was measured anywhere at all.
- * @property speeds the close-hauled speeds to expect here as a histogram: the mixture of the speeds
- *   measured here and around here, and of the speeds measured over the whole course. Its shape is what a
- *   puff or a hole shows up in, and what the race line's Monte Carlo draws a board's speed from.
- * @property measuredDistanceMeters how far the nearest measured square is (0 for a measured one), and
- *   infinite while nothing at all has been measured.
+ * @property histogram the speeds in quarter-metre bins - what a puff and a hole are told apart by, and what
+ *   a drawn speed takes its shape from.
+ * @property sumMps every speed added up, unbinned, so that the mean is the mean and not the middle of a
+ *   bin: a quarter of a metre a second is a twelfth of a dinghy's speed, and telling one side of the course
+ *   from the other turns on less than that.
  */
-public data class CellWind(
-    val cell: GridCell,
-    val shiftDegrees: Double,
-    val spreadDegrees: Double,
-    val samples: Int = 0,
-    val measured: Boolean = false,
-    val confidence: Double = 0.0,
-    val speedMps: Double = SailingConditions.DEFAULT_BOAT_SPEED_MPS,
-    val speeds: SpeedHistogram = SpeedHistogram(),
-    val measuredDistanceMeters: Double = Double.POSITIVE_INFINITY,
-)
+public data class SpeedStats(
+    val histogram: SpeedHistogram = SpeedHistogram(),
+    val sumMps: Double = 0.0,
+) {
+    /** The mean speed measured, or null when none was. */
+    public val meanMps: Double? get() = histogram.totalWeight.takeIf { it > 0.0 }?.let { sumMps / it }
+
+    public val isEmpty: Boolean get() = histogram.isEmpty
+}
 
 /**
- * The wind over the whole racing area, one distribution per square: a mean direction, how far it may be
- * off that, and a histogram of the close-hauled boat speed to expect.
+ * What one big square of the racing area has blown, and how much of the course's evidence that is.
  *
- * ## Where a square's wind comes from
+ * @property cell where the square is in [WindField.spec], the grid of big squares.
+ * @property winds every close-hauled wind sample taken inside it, as a histogram of shifts off the
+ *   reference wind (positive = veered), binned to the degree. Not a mean and a spread: the shape of it is
+ *   the point, because a square that swung twenty degrees either way all afternoon and one that sat five
+ *   degrees veered all day are not the same water, however close their averages.
+ * @property speeds the close-hauled speeds measured inside it, likewise: a puff and a hole rather than
+ *   their average, and what they average.
+ * @property share this square's share of every sample taken on the course, from 0 (nobody sailed here) to
+ *   1 (nobody sailed anywhere else). It is what its own histogram is worth against the whole course's when
+ *   a wind is drawn for it: a square with a hundred samples speaks for itself, a square with two borrows.
+ * @property measured true when it holds [WindFieldSettings.minBlockSamples] samples or more: what the map
+ *   draws a bolder arrow for. The wind drawn for it is worked out the same way either way.
+ */
+public data class BlockWind(
+    val cell: GridCell,
+    val winds: WindHistogram = WindHistogram(),
+    val speeds: SpeedStats = SpeedStats(),
+    val share: Double = 0.0,
+    val measured: Boolean = false,
+) {
+    /** How many close-hauled samples were taken inside this square. */
+    public val samples: Int get() = winds.totalSamples
+
+    /** The middle of the winds measured here, in degrees off the reference; null when none were. */
+    public val meanShiftDegrees: Double? get() = winds.meanDirection()?.let { Angles.signedDifference(0.0, it) }
+
+    /** The mean close-hauled speed measured here, or null when none was. */
+    public val meanSpeedMps: Double? get() = speeds.meanMps
+}
+
+/**
+ * The wind over the whole racing area as it has been measured, kept in big squares.
  *
- * Most of a racing area is never sailed through. Rather than hand those squares the nearest measurement
- * and pretend it was taken there, every square - sailed through or not - is a blend of three things, each
- * weighed by how much it is worth:
+ * ## Why big squares
  *
- * 1. **the samples taken in the square itself**, worth `n / wander²`: the more of them and the steadier
- *    they were, the more the square is simply what it measured;
- * 2. **the samples taken around it**, gathered into one measurement - the squares weighed by how many
- *    samples they hold and by `exp(-distance / correlationLength)`, how much of their wind is this
- *    square's wind - and worth what that measurement is worth here, which can never be more than the
- *    distance between them allows;
- * 3. **the wind over the whole course**, wherever it was measured, worth what a square can differ from the
- *    day's mean at all ([WindFieldSettings.spatialSpreadDegrees]). It is what is left over, and it is all
- *    that a corner nobody went near ever gets.
+ * A race is sailed up the middle of the course and back down it. Cut the area into the squares the track
+ * is binned onto and almost every one of them holds no close-hauled samples at all, and the handful that
+ * were sailed hold a few seconds each - far too little to call a wind, let alone a distribution. So the
+ * wind is worked out in squares big enough to fill up: [WindFieldSettings.columns] of them across the area
+ * (three by default - the left, the middle and the right of the course) and as many rows as it is tall.
+ * The fine squares are still there and still carry what was measured in them; they simply take their wind
+ * from the big square they lie in ([WindSampler]).
  *
- * Each of the three is a mean and how wrong it could be; a square's wind is their variance-weighted blend,
- * taken over unit vectors so that 350 and 10 average to 0, and how uncertain the blend still is comes out
- * of the same sum.
+ * ## What a big square knows
  *
- * So a square keeps the wind it measured, a square beside one borrows most of it, and a square in the far
- * corner knows only the day's breeze. What each of them does *not* know is kept as well: a square's spread
- * is how much the wind wandered where it was measured plus how much a square this far from anything
- * measured can differ from it ([WindFieldSettings.spatialSpreadDegrees]), which is what the race line's
- * Monte Carlo needs in order to treat an unsailed side of the course as the gamble it is.
+ * Only what was measured in it: a histogram of the wind shifts sailed through and a histogram of the
+ * close-hauled speeds, plus what share of the course's samples that is. Nothing is smoothed, blended or
+ * borrowed here - a square that nobody sailed through holds nothing, and says so with a share of zero.
+ * What a square that knows nothing should blow is a question about drawing a wind, not about measuring
+ * one, and it is answered in [WindSampler].
  *
- * The boat speeds are blended with the same three weights. Because a square's speed is kept as a
- * histogram, the blend is a *mixture*: an unsailed square between a puffy corner and a steady one is drawn
- * sometimes from the one and sometimes from the other, instead of always from an average that never
- * happened.
- *
- * As [SailingConditions] the field is that wind held still: one mean per square. The Monte Carlo of
- * [RaceLinePlanner] draws whole winds from the distributions instead.
+ * The whole course's histograms are kept alongside ([courseWinds], [courseSpeeds]): the wind of the day,
+ * wherever it was measured, which is what a square with little of its own falls back on.
  */
 public class WindField private constructor(
-    override val spec: GridSpec,
+    /** The big squares the wind is kept in: [WindFieldSettings.columns] across the area, as many rows as it is tall. */
+    public val spec: GridSpec,
+    /** The squares of the racing area itself: what the race line is searched over, each taking its big square's wind. */
+    public val cellSpec: GridSpec,
     public val settings: WindFieldSettings,
-    private val shifts: DoubleArray,
-    private val spreads: DoubleArray,
-    private val samples: IntArray,
-    private val measured: BooleanArray,
-    private val confidences: DoubleArray,
-    private val speedsMps: DoubleArray,
-    private val speeds: Array<SpeedHistogram>,
-    private val distances: DoubleArray,
-) : SailingConditions {
+    /** Which big square each square of [cellSpec] lies in, by the square's middle: worked out once, read per drawn wind. */
+    internal val blockOfCell: IntArray,
+    private val winds: Array<BlockWind>,
+    /** Every wind sample taken anywhere on the course: what a square with little of its own goes by. */
+    public val courseWinds: WindHistogram,
+    /** Every close-hauled speed measured anywhere on the course, likewise. */
+    public val courseSpeeds: SpeedStats,
+) {
 
-    public fun at(cell: GridCell): CellWind {
-        val index = spec.index(cell)
-        return CellWind(
-            cell = cell,
-            shiftDegrees = shifts[index],
-            spreadDegrees = spreads[index],
-            samples = samples[index],
-            measured = measured[index],
-            confidence = confidences[index],
-            speedMps = speedMps(cell),
-            speeds = speeds[index],
-            measuredDistanceMeters = distances[index],
-        )
-    }
+    /** What was measured in one big square. */
+    public fun at(block: GridCell): BlockWind = winds[spec.index(block)]
 
-    override fun shiftDegrees(cell: GridCell): Double = shifts[spec.index(cell)]
+    /** Every big square of the area, bottom row first. */
+    public val blocks: List<BlockWind> get() = winds.asList()
 
-    /** How far the wind in a cell may be off its mean: what one drawn wind is spread by. */
-    public fun spreadDegrees(cell: GridCell): Double = spreads[spec.index(cell)]
+    /** How many close-hauled samples were taken on the course at all. */
+    public val samples: Int get() = courseWinds.totalSamples
 
-    /** The close-hauled speed expected in a cell, or the default where nothing was measured at all. */
-    override fun speedMps(cell: GridCell): Double =
-        speedsMps[spec.index(cell)].takeIf { it > 0.0 } ?: SailingConditions.DEFAULT_BOAT_SPEED_MPS
+    /**
+     * The middle of every wind measured anywhere on the course, in degrees off the reference; null when
+     * nothing has been measured at all. It is what a square that measured nothing of its own is drawn from,
+     * and what the map draws its arrow of.
+     */
+    public val courseShiftDegrees: Double?
+        get() = courseWinds.meanDirection()?.let { Angles.signedDifference(0.0, it) }
 
-    public val cells: List<CellWind> get() = (0 until spec.cellCount).map { at(spec.cellAt(it)) }
+    /** How many big squares hold enough samples to count as measured. */
+    public val measuredCount: Int get() = winds.count { it.measured }
 
-    public val measuredCount: Int get() = measured.count { it }
-
-    override fun equals(other: Any?): Boolean =
-        other is WindField && spec == other.spec && settings == other.settings && shifts.contentEquals(other.shifts) &&
-            spreads.contentEquals(other.spreads) && samples.contentEquals(other.samples) &&
-            measured.contentEquals(other.measured) && speedsMps.contentEquals(other.speedsMps) &&
-            speeds.contentEquals(other.speeds)
-
-    override fun hashCode(): Int = 31 * spec.hashCode() + shifts.contentHashCode()
-
-    override fun toString(): String = "WindField(spec=$spec, measured=$measuredCount)"
+    override fun toString(): String = "WindField(spec=$spec, samples=$samples, measured=$measuredCount)"
 
     public companion object {
 
+        /**
+         * The wind measured by [track], in the big squares of the area [spec] covers. Every close-hauled
+         * sample is binned as a shift off the frame's reference wind, so changing the reference - or the
+         * squares - is simply a matter of building the field again.
+         */
         public fun build(
-            grid: TrackGrid,
-            referenceDegrees: Double,
+            track: Track,
+            frame: CourseFrame,
+            spec: GridSpec,
             settings: WindFieldSettings = WindFieldSettings(),
         ): WindField {
-            val spec = grid.spec
-            val count = spec.cellCount
-            val shifts = DoubleArray(count)
-            val spreads = DoubleArray(count)
-            val sampleCounts = IntArray(count)
-            val measured = BooleanArray(count)
-            val confidences = DoubleArray(count)
-            val speedsMps = DoubleArray(count)
-            val speeds = Array(count) { SpeedHistogram() }
-            val distances = DoubleArray(count) { Double.POSITIVE_INFINITY }
-
-            val sources = ArrayList<Measured>()
-            for (index in 0 until count) {
-                val stats = grid.stats(spec.cellAt(index))
-                sampleCounts[index] = stats.upwindSamples
-                measured[index] = stats.upwindSamples >= settings.minCellSamples
-                sources += Measured.of(index, spec.center(spec.cellAt(index)), stats, referenceDegrees, settings) ?: continue
+            val blockSpec = spec.blocks(settings.columns)
+            val count = blockSpec.cellCount
+            // Binned in place: a track is thousands of points, and a histogram that copied itself per
+            // sample would copy a few hundred thousand bins a second.
+            val windBins = Array(count) { IntArray(WindHistogram.BIN_COUNT) }
+            val speedBins = Array(count) { DoubleArray(SpeedHistogram.BIN_COUNT) }
+            val courseWindBins = IntArray(WindHistogram.BIN_COUNT)
+            val courseSpeedBins = DoubleArray(SpeedHistogram.BIN_COUNT)
+            val speedSums = DoubleArray(count)
+            var courseSpeedSum = 0.0
+            var samples = 0
+            for (point in track.points) {
+                val wind = point.upwindWindDegrees ?: continue
+                val index = blockSpec.cellOf(frame.toCourse(point.point))?.let(blockSpec::index) ?: continue
+                val shift = Angles.normalize(Angles.signedDifference(frame.windDirectionDegrees, wind).roundToInt())
+                windBins[index][shift]++
+                courseWindBins[shift]++
+                samples++
+                val speed = point.speedMps ?: continue
+                val bin = SpeedHistogram.binOf(speed)
+                speedBins[index][bin] += 1.0
+                courseSpeedBins[bin] += 1.0
+                speedSums[index] += speed
+                courseSpeedSum += speed
             }
-            // The wind over the whole course, wherever it was measured: what a square with nothing of its
-            // own goes by, and what is left of every square once its own samples have had their say.
-            val global = Measured.of(-1, CoursePosition(0.0, 0.0), grid.total, referenceDegrees, settings)
-            val globalWander = global?.wanderDegrees ?: settings.sampleSpreadDegrees
-            val spatialVariance = settings.spatialSpreadDegrees * settings.spatialSpreadDegrees
-            // What the day's wind is worth in a square: how uncertain its own mean is, plus how far this
-            // square could differ from it whatever it is. It is what a square with nothing of its own is
-            // left with, and what everything else is measured against.
-            val globalPrecision = 1.0 /
-                (globalWander * globalWander / ((global?.samples ?: 0) + 1) + spatialVariance)
-
-            val bins = DoubleArray(SpeedHistogram.BIN_COUNT)
-            val range = settings.neighbourhoodRadii * settings.correlationLengthMeters
-            for (index in 0 until count) {
-                val centre = spec.center(spec.cellAt(index))
-                val local = sources.firstOrNull { it.index == index }
-                // Everything measured around this square, as one measurement: the squares weighed by how
-                // far away they are and by how many samples they hold. Weighing them one by one against
-                // the rest would count a hundred squares of one shift as a hundred separate opinions,
-                // when the whole point of a shift is that they are all saying the same thing.
-                var mass = 0.0
-                var cosine = 0.0
-                var sine = 0.0
-                var wanderSum = 0.0
-                var sharedSum = 0.0
-                var speedSum = 0.0
-                var speedMass = 0.0
-                var nearest = Double.POSITIVE_INFINITY
-                for (source in sources) {
-                    val distance = distance(centre, source.centre)
-                    if (source.measured) nearest = min(nearest, distance)
-                    if (source.index == index || distance > range) continue
-                    val shared = exp(-distance / settings.correlationLengthMeters)
-                    val weight = shared * source.samples
-                    mass += weight
-                    cosine += weight * source.cosine
-                    sine += weight * source.sine
-                    wanderSum += weight * source.wanderDegrees * source.wanderDegrees
-                    sharedSum += weight * shared
-                    if (source.speedMps != null) {
-                        speedSum += weight * source.speedMps
-                        speedMass += weight
-                    }
-                }
-                // How much of this square's wind the neighbourhood could know even if it were measured
-                // perfectly: what two places that far apart share.
-                val shared = if (mass > 0.0) sharedSum / mass else 0.0
-                val neighbourWander = if (mass > 0.0) sqrt(wanderSum / mass) else globalWander
-                // Each of the three as a precision - one over how wrong it could be - so that they weigh
-                // themselves: the samples here by how many they are, the neighbourhood by how far away and
-                // how many it is, the day's wind by how much a square can differ from it at all.
-                val localPrecision = if (local == null) 0.0 else local.samples / (local.wanderDegrees * local.wanderDegrees)
-                val neighbourPrecision = if (mass <= 0.0) {
-                    0.0
-                } else {
-                    1.0 / (neighbourWander * neighbourWander / mass + spatialVariance * (1.0 - shared * shared))
-                }
-                val total = localPrecision + neighbourPrecision + globalPrecision
-
-                val blend = Blend()
-                if (local != null) blend.add(localPrecision / total, local.cosine, local.sine, local.wanderDegrees)
-                if (mass > 0.0) blend.add(neighbourPrecision / total, cosine / mass, sine / mass, neighbourWander)
-                blend.add(globalPrecision / total, global?.cosine ?: 1.0, global?.sine ?: 0.0, globalWander)
-                val wanderVariance = blend.wanderVariance / blend.weight
-
-                shifts[index] = blend.degrees()
-                // What the wind here may be: how much it wanders, and how far its mean could still be out.
-                spreads[index] = sqrt(wanderVariance + 1.0 / total).coerceIn(settings.minSpreadDegrees, settings.maxSpreadDegrees)
-                // How much of what this square knows is its own and its neighbours', rather than the day's.
-                confidences[index] = (1.0 - globalPrecision / total).coerceIn(0.0, 1.0)
-
-                bins.fill(0.0)
-                var speed = 0.0
-                var speedWeight = 0.0
-                if (local?.speedMps != null) {
-                    val weight = localPrecision / total
-                    speed += weight * local.speedMps
-                    speedWeight += weight
-                    local.addSpeedsTo(bins, weight)
-                }
-                if (speedMass > 0.0) {
-                    val weight = neighbourPrecision / total
-                    speed += weight * speedSum / speedMass
-                    speedWeight += weight
-                    // A neighbour is only worth mixing into the histogram when it is worth seeing in it.
-                    val cutoff = speedMass * settings.minWeightFraction
-                    for (source in sources) {
-                        if (source.index == index || source.speedMps == null) continue
-                        val distance = distance(centre, source.centre)
-                        if (distance > range) continue
-                        val share = exp(-distance / settings.correlationLengthMeters) * source.samples
-                        if (share >= cutoff) source.addSpeedsTo(bins, weight * share / speedMass)
-                    }
-                }
-                if (global?.speedMps != null) {
-                    val weight = globalPrecision / total
-                    speed += weight * global.speedMps
-                    speedWeight += weight
-                    global.addSpeedsTo(bins, weight)
-                }
-                speedsMps[index] = if (speedWeight > 0.0) speed / speedWeight else 0.0
-                speeds[index] = SpeedHistogram.fromWeights(bins)
-                distances[index] = nearest
+            val blocks = Array(count) { index ->
+                val winds = WindHistogram.fromCounts(windBins[index])
+                BlockWind(
+                    cell = blockSpec.cellAt(index),
+                    winds = winds,
+                    speeds = SpeedStats(SpeedHistogram.fromWeights(speedBins[index]), speedSums[index]),
+                    share = if (samples == 0) 0.0 else winds.totalSamples.toDouble() / samples,
+                    measured = winds.totalSamples >= settings.minBlockSamples,
+                )
             }
-            return WindField(spec, settings, shifts, spreads, sampleCounts, measured, confidences, speedsMps, speeds, distances)
-        }
-
-        private fun distance(from: CoursePosition, to: CoursePosition): Double {
-            val across = from.acrossMeters - to.acrossMeters
-            val upwind = from.upwindMeters - to.upwindMeters
-            return sqrt(across * across + upwind * upwind)
-        }
-
-        /** Three winds and what each of them is worth, added up as vectors so that 350 and 10 average to 0. */
-        private class Blend {
-            var weight: Double = 0.0
-            private var cosine: Double = 0.0
-            private var sine: Double = 0.0
-            var wanderVariance: Double = 0.0
-                private set
-
-            fun add(weight: Double, cosine: Double, sine: Double, wanderDegrees: Double) {
-                if (weight <= 0.0) return
-                this.weight += weight
-                this.cosine += weight * cosine
-                this.sine += weight * sine
-                wanderVariance += weight * wanderDegrees * wanderDegrees
+            val blockOfCell = IntArray(spec.cellCount) { index ->
+                blockSpec.index(blockSpec.nearestCell(spec.center(spec.cellAt(index))))
             }
-
-            fun degrees(): Double = Angles.signedDifference(0.0, Angles.toDegrees(atan2(sine, cosine)))
-        }
-
-        /**
-         * What was measured in one place - one square, or the whole course: its mean wind as a unit vector
-         * off the reference, how much the wind wandered there, and the speeds seen there.
-         */
-        private class Measured(
-            val index: Int,
-            val centre: CoursePosition,
-            val samples: Int,
-            val measured: Boolean,
-            val cosine: Double,
-            val sine: Double,
-            val wanderDegrees: Double,
-            val speedMps: Double?,
-            val speeds: SpeedHistogram,
-        ) {
-            /**
-             * Adds this place's speeds into a blend, weighed by [weight]. The histogram is normalised
-             * first: how much a place's speeds count is [weight]'s business, not the number of seconds
-             * that happened to be sailed there.
-             */
-            fun addSpeedsTo(bins: DoubleArray, weight: Double) {
-                val total = speeds.totalWeight
-                if (total > 0.0) speeds.addTo(bins, weight / total)
-            }
-
-            companion object {
-                fun of(
-                    index: Int,
-                    centre: CoursePosition,
-                    stats: CellStats,
-                    referenceDegrees: Double,
-                    settings: WindFieldSettings,
-                ): Measured? {
-                    val mean = stats.meanWindDegrees ?: return null
-                    val radians = Angles.toRadians(Angles.signedDifference(referenceDegrees, mean))
-                    val speedWeight = stats.speeds.totalWeight
-                    return Measured(
-                        index = index,
-                        centre = centre,
-                        samples = stats.upwindSamples,
-                        measured = stats.upwindSamples >= settings.minCellSamples,
-                        cosine = cos(radians),
-                        sine = sin(radians),
-                        // A square with a single sample has nothing to say about how much its wind wanders,
-                        // so it is credited with what wind does anyway; a steadier one is never believed
-                        // beyond the floor, because the tack angle it was read from is only a model.
-                        wanderDegrees = (stats.windSpreadDegrees ?: settings.sampleSpreadDegrees)
-                            .coerceAtLeast(settings.minSpreadDegrees),
-                        speedMps = if (speedWeight > 0.0) stats.speedSum / speedWeight else null,
-                        speeds = stats.speeds,
-                    )
-                }
-            }
+            return WindField(
+                spec = blockSpec,
+                cellSpec = spec,
+                settings = settings,
+                blockOfCell = blockOfCell,
+                winds = blocks,
+                courseWinds = WindHistogram.fromCounts(courseWindBins),
+                courseSpeeds = SpeedStats(SpeedHistogram.fromWeights(courseSpeedBins), courseSpeedSum),
+            )
         }
     }
 }

@@ -215,13 +215,14 @@ class FullRaceEndToEndTest {
         assertNotNull(course.spec.cellOf(course.windwardMark))
         assertNotNull(course.spec.cellOf(assertNotNull(course.pinEnd)))
         assertTrue(course.spec.heightMeters >= 500.0 && course.spec.heightMeters < 700.0, "area ${course.spec}")
-        // The wind field shows the shear: measured cells on the right are veered relative to those on the left.
-        val measured = course.windField.cells.filter { it.measured }
-        assertTrue(measured.size >= 6, "measured cells ${measured.size}")
-        val rightShift = measured.filter { course.spec.center(it.cell).acrossMeters > 40.0 }.map { it.shiftDegrees }.average()
-        val leftShift = measured.filter { course.spec.center(it.cell).acrossMeters < -40.0 }.map { it.shiftDegrees }.average()
+        // The wind field shows the shear: the big squares on the right measured a veer relative to the left.
+        val blocks = course.windField.spec
+        val measured = course.windField.blocks.filter { it.measured }
+        assertTrue(measured.size >= 3, "measured blocks ${measured.size} of ${course.windField.blocks.size}")
+        val rightShift = measured.filter { blocks.center(it.cell).acrossMeters > 40.0 }.mapNotNull { it.meanShiftDegrees }.average()
+        val leftShift = measured.filter { blocks.center(it.cell).acrossMeters < -40.0 }.mapNotNull { it.meanShiftDegrees }.average()
         assertTrue(rightShift > leftShift + 2.0, "right $rightShift vs left $leftShift")
-        assertTrue(course.windField.cells.none { it.measured } || course.windField.cells.all { abs(it.shiftDegrees) < 30.0 })
+        assertTrue(measured.all { abs(assertNotNull(it.meanShiftDegrees)) < 30.0 }, "a measured block is wildly off: $measured")
         // Halfway up the beat the app draws a line from the boat to the mark that stays inside the area.
         val midBeat = at(gun + (beatEnd - gun) / 2 / 1000 * 1000)
         val midCourse = assertNotNull(midBeat.course)

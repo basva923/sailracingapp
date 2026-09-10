@@ -56,4 +56,33 @@ class PlanTextTest {
         assertEquals("Trend +2° · play the shifts", PlanText.sideDetail(base.copy(trendDegrees = 2.0, favouredSide = FavouredSide.EVEN)))
         assertEquals("Trend +2° · not enough yet", PlanText.sideDetail(base.copy(trendDegrees = 2.0)))
     }
+
+    @Test
+    fun tackGlances() {
+        val hold = base.copy(tackAdvice = TackAdvice.HOLD, currentTack = Tack.STARBOARD, favouredTack = Tack.STARBOARD, shiftFromReferenceDegrees = 6.4)
+        assertEquals("Stbd lifted 6°", PlanText.tackGlance(hold))
+        val tack = base.copy(tackAdvice = TackAdvice.TACK, currentTack = Tack.STARBOARD, favouredTack = Tack.PORT, shiftFromReferenceDegrees = -5.0)
+        assertEquals("Headed 5° · port lifted", PlanText.tackGlance(tack))
+        assertEquals("At the mean ±6°", PlanText.tackGlance(base.copy(tackAdvice = TackAdvice.EITHER)))
+        assertEquals("At the mean wind", PlanText.tackGlance(base.copy(tackAdvice = TackAdvice.EITHER, oscillationDegrees = null)))
+        assertEquals(
+            "At the set wind",
+            PlanText.tackGlance(base.copy(tackAdvice = TackAdvice.EITHER, oscillationDegrees = null, referenceIsMeasured = false)),
+        )
+        assertEquals("No heading", PlanText.tackGlance(base))
+        assertEquals("Sail close-hauled", PlanText.tackGlance(base.copy(currentTack = Tack.PORT)))
+        assertEquals("— lifted 3°", PlanText.tackGlance(hold.copy(currentTack = null, shiftFromReferenceDegrees = 3.0)))
+    }
+
+    @Test
+    fun sideGlances() {
+        assertEquals("Sail both sides · 12 L / 0 R", PlanText.sideGlance(base.copy(sides = SideComparison(leftSamples = 12))))
+        val full = base.copy(
+            sides = SideComparison(40, 50, windDifferenceDegrees = 4.2, speedDifferenceMps = 0.15),
+            trendDegrees = -1.2,
+            favouredSide = FavouredSide.RIGHT,
+        )
+        assertEquals("Wind +4° · speed +0.3 · trend -1°", PlanText.sideGlance(full))
+        assertEquals("Trend +2°", PlanText.sideGlance(base.copy(trendDegrees = 2.0)))
+    }
 }

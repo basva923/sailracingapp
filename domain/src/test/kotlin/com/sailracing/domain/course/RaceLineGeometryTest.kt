@@ -24,34 +24,15 @@ import kotlin.test.assertTrue
  */
 class RaceLineGeometryTest {
 
-    private val frame = CourseFrame(GeoPoint(51.14, 5.83), windDirectionDegrees = 0.0)
-
     // ------------------------------------------------------------------ the problems
 
-    /** A wind field with [shift] degrees off the reference wind in every square, positive = veered. */
-    private fun windOf(spec: GridSpec, speedMps: Double = RaceLineFinder.BOAT_SPEED_MPS, shift: (GridCell) -> Double): WindField {
-        val points = ArrayList<TrackPoint>()
-        for (index in 0 until spec.cellCount) {
-            val cell = spec.cellAt(index)
-            repeat(WindFieldSettings().minCellSamples) {
-                points += TrackPoint(
-                    timestampMillis = 0L,
-                    point = frame.toGeo(spec.center(cell)),
-                    speedMps = speedMps,
-                    headingDegrees = 0.0,
-                    upwindWindDegrees = Angles.normalize(shift(cell)),
-                )
-            }
-        }
-        val track = Track(points, capacity = points.size + 1)
-        // The wind is believed to hang together over three squares, whatever a square measures: these are
-        // tests about geometry, so the same course at twice the size has to be the same course.
-        return WindField.build(
-            TrackGrid.build(track, frame, spec, spec.topCenter),
-            referenceDegrees = 0.0,
-            settings = WindFieldSettings(correlationLengthMeters = 3.0 * spec.cellSizeMeters),
-        )
-    }
+    /**
+     * A wind of [shift] degrees off the reference in every square, positive = veered. These are tests
+     * about geometry, so the wind is handed to the search as it is: the same course at twice the size has
+     * to come out the same course, whatever a square would have measured.
+     */
+    private fun windOf(spec: GridSpec, speedMps: Double = RaceLineFinder.BOAT_SPEED_MPS, shift: (GridCell) -> Double): SailingConditions =
+        CourseFixtures.Wind(spec, speedMps, shift)
 
     /** A position given as a fraction of the width and the height of the area. */
     private fun inside(spec: GridSpec, across: Double, upwind: Double): CoursePosition =
@@ -134,7 +115,7 @@ class RaceLineGeometryTest {
      * the seconds are the boards plus the tacks plus that run in, and the tacks are the changes of tack.
      */
     private fun assertObeysTheRules(
-        field: WindField,
+        field: SailingConditions,
         from: CoursePosition,
         to: CoursePosition,
         tackAngleDegrees: Int,
@@ -154,7 +135,7 @@ class RaceLineGeometryTest {
         if (legs.size == 1) {
             // Not a beat: the straight course from the boat to the mark, at the speed made good towards it.
             assertEquals(0, line.tacks, "$what: a straight course is sailed without tacking")
-            val wind = field.at(spec.nearestCell(from)).shiftDegrees
+            val wind = field.shiftDegrees(spec.nearestCell(from))
             assertEquals(runSeconds(wind, from, to, tackAngleDegrees, speedMps), line.seconds, 1e-6, "$what: the straight course")
             return
         }
@@ -184,23 +165,23 @@ class RaceLineGeometryTest {
             val touching = squaresAt(spec, middle(at, next)).intersect(squaresAt(spec, at).toSet())
             val crossed = assertNotNull(
                 touching.firstOrNull { cell ->
-                    val twa = Angles.signedDifference(field.at(cell).shiftDegrees, bearing)
+                    val twa = Angles.signedDifference(field.shiftDegrees(cell), bearing)
                     abs(abs(twa) - tackAngleDegrees) < 1e-6 && abs(exitDistance(spec, cell, at, bearing) - length) < 1e-6
                 },
                 "$what: board $at -> $next (${length}m on $bearing) is not one close-hauled crossing of one square; " +
-                    "squares $touching, winds ${touching.map { field.at(it).shiftDegrees }}, " +
+                    "squares $touching, winds ${touching.map { field.shiftDegrees(it) }}, " +
                     "exits ${touching.map { exitDistance(spec, it, at, bearing) }}",
             )
             // Progress is measured on what is left to sail, not on the straight line to the mark: closing
             // the layline, a boat that tacks through more than a right angle adds to the straight distance
             // and still shortens its beat. (Corrected after the first run: the rule as first written here,
             // and in the spec, was the straight distance, which only says the same thing at 45 degrees.)
-            val wind = field.at(crossed).shiftDegrees
+            val wind = field.shiftDegrees(crossed)
             assertTrue(
                 runSeconds(wind, next, to, tackAngleDegrees, 1.0) < runSeconds(wind, at, to, tackAngleDegrees, 1.0),
                 "$what: board $at -> $next gives away part of the beat still to sail",
             )
-            val onStarboard = Angles.signedDifference(field.at(crossed).shiftDegrees, bearing) < 0.0
+            val onStarboard = Angles.signedDifference(field.shiftDegrees(crossed), bearing) < 0.0
             if (starboard != null && starboard != onStarboard) tacks++
             starboard = onStarboard
             sailed += length
@@ -221,7 +202,7 @@ class RaceLineGeometryTest {
         // the tack the last board arrived on. (Corrected after the first run: the tacks and the seconds both
         // count it, and they did not here.)
         val totals = finishing.map { square ->
-            val wind = field.at(square).shiftDegrees
+            val wind = field.shiftDegrees(square)
             val twa = Angles.signedDifference(wind, course(last, mark))
             val tackedIn = runIn > 0.0 && abs(twa) >= tackAngleDegrees - 1e-9 && (twa < 0.0) != starboard
             val all = tacks + if (tackedIn) 1 else 0

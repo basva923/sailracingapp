@@ -87,11 +87,12 @@ class ComponentsTest {
         val full = MapUiState(
                 area = MapArea(-60.0, -60.0, 240.0, 240.0, 60.0),
             view = MapView(0.0, 60.0, 300.0, 300.0),
+            windArea = MapArea(-60.0, -60.0, 240.0, 240.0, 80.0),
             arrows = listOf(
-                MapArrow(0, 0, 4.0, true, confidence = 1.0),
-                MapArrow(1, 0, -4.0, true, confidence = 0.6),
-                MapArrow(2, 1, 0.5, false, confidence = 0.1),
-                MapArrow(3, 3, -0.5, true, confidence = 0.0),
+                MapArrow(-20.0, -20.0, 80.0, 4.0, true, confidence = 1.0),
+                MapArrow(60.0, -20.0, 80.0, -4.0, true, confidence = 0.6),
+                MapArrow(140.0, 60.0, 80.0, 0.5, false, confidence = 0.1),
+                MapArrow(140.0, 140.0, 80.0, -0.5, true, confidence = 0.0),
             ),
             track = listOf(CoursePosition(-50.0, -50.0), CoursePosition(0.0, 0.0), CoursePosition(40.0, 120.0)),
             raceLine = listOf(CoursePosition(40.0, 120.0), CoursePosition(20.0, 150.0), CoursePosition(0.0, 180.0)),
@@ -130,12 +131,19 @@ class ComponentsTest {
                     LabeledValue(label = "Heading", value = "317°")
                     Caption("plain caption")
                     StatusChip("GPS", ok = true)
+                    GlanceCell(value = "6.2", modifier = Modifier.size(160.dp, 90.dp), title = "Speed") { Caption("+0.3 vs avg") }
+                    GlanceCell(value = "HOLD", modifier = Modifier.size(160.dp, 60.dp))
+                    SmallButton("Fit", onClick = {})
                 }
             }
         }
         compose.onNodeWithText("5.8").assertIsDisplayed()
         compose.onNodeWithText("317°").assertIsDisplayed()
         compose.onNodeWithText("PLAIN CAPTION").assertIsDisplayed()
+        compose.onNodeWithText("6.2").assertExists()
+        compose.onNodeWithText("+0.3 VS AVG").assertExists()
+        compose.onNodeWithText("HOLD").assertExists()
+        compose.onNodeWithText("Fit").assertExists()
     }
 
     @Test
@@ -144,6 +152,10 @@ class ComponentsTest {
         assertEquals(RaceColors.Starboard, tackColor(Tack.STARBOARD))
         assertEquals(RaceColors.Port, tackColor(Tack.PORT))
         assertEquals(RaceColors.Muted, tackColor(null))
+        assertEquals(RaceColors.Muted, speedDeltaColor(null))
+        assertEquals(RaceColors.Early, speedDeltaColor(0.3))
+        assertEquals(RaceColors.Late, speedDeltaColor(-0.3))
+        assertEquals(RaceColors.White, speedDeltaColor(0.02))
         assertEquals("5", formatNumber(5.0, 0))
         assertEquals("5.0", formatNumber(5.0, 1))
         assertEquals(2.9, roundTo(2.9157, 1))

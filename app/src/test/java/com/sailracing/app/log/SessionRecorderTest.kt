@@ -49,7 +49,8 @@ class SessionRecorderTest {
         assertTrue(line.contains(""""approachSpeedMps":2.5"""), line)
         assertTrue(line.contains(""""approachSpeedManual":true"""), line)
         assertTrue(line.contains(""""cellSizeMeters":40.0"""), line)
-        assertTrue(line.contains(""""monteCarloRuns":16"""), line)
+        assertTrue(line.contains(""""monteCarloRuns":1000"""), line)
+        assertTrue(line.contains(""""windColumns":3"""), line)
         // A racing area that chooses its own squares simply has no size to state.
         assertTrue(!recorder.start(0L, "", AppSettings()).toJsonLine().contains("cellSizeMeters"))
     }
@@ -116,7 +117,8 @@ class SessionRecorderTest {
         assertTrue(line.contains(""""referenceMeasured":false"""), line)
         assertTrue(line.contains(""""trackPoints":1"""), line)
         assertTrue(line.contains(""""cells":"""), line)
-        assertTrue(line.contains(""""measuredCells":0"""), line)
+        assertTrue(line.contains(""""measuredBlocks":0"""), line)
+        assertTrue(line.contains(""""windBlocks":"""), line)
         assertTrue(line.contains(""""advice":"""), line)
         assertTrue(line.contains(""""favouredSide":"""), line)
     }

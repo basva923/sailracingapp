@@ -1,7 +1,6 @@
 package com.sailracing.domain.course
 
 import com.sailracing.domain.geo.Angles
-import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.wind.Tack
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -15,35 +14,19 @@ import kotlin.test.assertTrue
 
 class RaceLineFinderTest {
 
-    private val frame = CourseFrame(GeoPoint(51.14, 5.83), windDirectionDegrees = 0.0)
-
     /** 600 x 600 m of 50 m squares, the start at the bottom middle, the mark at the top middle. */
     private val area = GridSpec(-300.0, 0.0, 12, 12, 50.0)
     private val start = CoursePosition(0.0, 0.0)
     private val mark = CoursePosition(0.0, 600.0)
 
-    /** A wind measured in every square: [shift] degrees off the reference wind, positive = veered. */
-    private fun field(spec: GridSpec = area, speedMps: Double = RaceLineFinder.BOAT_SPEED_MPS, shift: (GridCell) -> Double): WindField {
-        val points = ArrayList<TrackPoint>()
-        for (index in 0 until spec.cellCount) {
-            val cell = spec.cellAt(index)
-            val centre = spec.center(cell)
-            repeat(SAMPLES_PER_CELL) {
-                points += TrackPoint(0L, frame.toGeo(centre), speedMps = speedMps, headingDegrees = 0.0, upwindWindDegrees = Angles.normalize(shift(cell)))
-            }
-        }
-        return WindField.build(TrackGrid.build(Track(points, capacity = points.size + 1), frame, spec, mark), referenceDegrees = 0.0)
-    }
+    /**
+     * A wind of [shift] degrees off the reference in every square, positive = veered. These fixtures are
+     * about the search, so the wind is handed to it as it is rather than measured and drawn first.
+     */
+    private fun field(spec: GridSpec = area, speedMps: Double = RaceLineFinder.BOAT_SPEED_MPS, shift: (GridCell) -> Double): SailingConditions =
+        CourseFixtures.Wind(spec, speedMps, shift)
 
     private val even = field { 0.0 }
-
-    /**
-     * Enough samples in every square that its own wind is what it measured: the wind field blends a
-     * square's samples with the water around it, and these fixtures are about the search, not the blend.
-     */
-    private companion object {
-        const val SAMPLES_PER_CELL = 60
-    }
 
     private fun distance(from: CoursePosition, to: CoursePosition) =
         hypot(to.acrossMeters - from.acrossMeters, to.upwindMeters - from.upwindMeters)
@@ -60,7 +43,7 @@ class RaceLineFinderTest {
      * gives away any of the beat still to sail, and the time is the boards plus the tacks.
      */
     private fun assertSailable(
-        field: WindField,
+        field: SailingConditions,
         line: RaceLine,
         tackAngleDegrees: Int,
         from: CoursePosition = start,
@@ -86,7 +69,7 @@ class RaceLineFinderTest {
             // The last board can end on the mark itself, leaving nothing of the run in to check.
             if (index == boards.size - 1 && distance(at, next) == 0.0) continue
             val cell = spec.cellOf(middle) ?: spec.nearestCell(middle)
-            val wind = field.at(cell).shiftDegrees
+            val wind = field.shiftDegrees(cell)
             val twa = Angles.signedDifference(wind, bearing)
             // The beat still to sail has to get shorter: a wide-angled boat closing the layline sails a
             // board that adds to the straight-line distance and still gains, which is the rule that counts.

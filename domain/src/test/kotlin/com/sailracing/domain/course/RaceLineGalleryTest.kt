@@ -11,12 +11,13 @@ import kotlin.math.atan2
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * Ten racing areas, drawn to `docs/raceline` so that the plan can be checked by eye: the wind measured in
- * every square with how sure of it the model is, the pressure over the course, every simulation's own best
- * beat, and the two lines the plan picks out of them.
+ * Ten racing areas, drawn to `docs/raceline` so that the plan can be checked by eye: the mean wind of every
+ * big square with how much it wandered, the pressure over the course, the best beat of every simulation
+ * that was searched, and the two lines the plan picks out of them.
  *
  * Each one also asserts what it is a picture of, so that a change to the algorithm that spoils a case fails
  * here rather than quietly redrawing the gallery. The assertions are deliberately about the shape of the
@@ -77,7 +78,7 @@ class RaceLineGalleryTest {
         oscillatingBands()
         pressureOnTheLeft()
         puffyRight()
-        shiftyRight()
+        aSwingingDay()
         headedRightNow()
         unsailedMiddle()
         narrowCorridor()
@@ -90,16 +91,20 @@ class RaceLineGalleryTest {
             appendLine("Written by `RaceLineGalleryTest`; run `./gradlew :domain:test` to draw them again.")
             appendLine()
             appendLine("Every picture is one racing area, wind up the page, the start at the bottom and the windward")
-            appendLine("mark **M** at the top. In each square an arrow points the way the wind there blows, amber where")
-            appendLine("it is veered and blue where it is backed, dim where nobody has sailed and it was estimated from")
-            appendLine("the squares that were; the pale wedge behind the arrow is how uncertain that wind is, and the")
-            appendLine("shading of the square is the boat speed measured in it, lighter for more pressure. The white dot")
-            appendLine("is the boat, with an arrow for the wind it is measuring right now where it has one.")
+            appendLine("mark **M** at the top. The thin grid is the racing area, the squares the line bends on; the bold")
+            appendLine("one is the big squares the wind is worked out in, three across the course and as many rows as it")
+            appendLine("is tall. In each big square an arrow points the way its mean wind blows, amber where it is veered")
+            appendLine("and blue where it is backed, dim where too little was measured there to call it measured; the pale")
+            appendLine("wedge behind the arrow is how far the simulated winds spread there - its own history, the day's and")
+            appendLine("chance all told - and the shading of the square is the boat speed measured in it, lighter for more")
+            appendLine("pressure. The white dot is the boat, with an arrow for the wind it is measuring right now where it")
+            appendLine("has one.")
             appendLine()
-            appendLine("The thin grey lines are the fastest beat of each of the ${settings.runs} simulated winds - the spread of")
-            appendLine("opinion. The **green** line is the race line the map draws, the one whose bad day is least bad. The")
-            appendLine("**amber dashed** line, where there is one, is the flyer: the line that pays most when the wind is")
-            appendLine("kind, drawn only when it is worth at least a tack more than the race line on a good day.")
+            appendLine("The thin grey lines are the fastest beat of each of the ${settings.searched} winds a beat was searched in, out of the")
+            appendLine("${settings.runs} every line is then timed through - the spread of opinion. The **green** line is the race line the")
+            appendLine("map draws, the one whose bad day is least bad. The **amber dashed** line, where there is one, is the")
+            appendLine("flyer: the line that pays most when the wind is kind, drawn only when it is worth at least a tack")
+            appendLine("more than the race line on a good day.")
             for (drawing in drawn) {
                 appendLine()
                 appendLine("## ${drawing.title}")
@@ -191,7 +196,7 @@ class RaceLineGalleryTest {
     private fun puffyRight() {
         // Both halves average 3 m/s; the right half gets there by being half puff and half hole.
         val field = CourseFixtures.field(area, samplesPerCell = 60) { cell, index, _ ->
-            val speed = if (cell.column < 6) 3.0 else if (index % 2 == 0) 4.2 else 1.8
+            val speed = if (cell.column < 6) 3.0 else if (index % 2 == 0) 4.8 else 1.2
             CourseFixtures.Sample(swing(0.0, 2.0, index), speed)
         }
         val plan = gallery(
@@ -206,22 +211,23 @@ class RaceLineGalleryTest {
         assertTrue(sideOf(plan.fast) > sideOf(plan.safe), "the flyer should be the one in the puffs")
     }
 
-    private fun shiftyRight() {
-        // The same mean wind either side, but the right half swings 20 degrees and the left barely moves.
-        val field = CourseFixtures.field(area, samplesPerCell = 60) { cell, index, _ ->
-            CourseFixtures.Sample(swing(0.0, if (cell.column >= 6) 20.0 else 2.0, index), 3.0)
+    private fun aSwingingDay() {
+        // The wind has swung 25 degrees either way all day, everywhere on the course.
+        val field = CourseFixtures.field(area, samplesPerCell = 60) { _, index, _ ->
+            CourseFixtures.Sample(swing(0.0, 25.0, index), 3.0)
         }
         val plan = gallery(
-            "06-shifty-right",
-            "A shifty right, a steady left",
-            "The wind averages the same on both sides, but nobody can be sure of the right: it has been swinging " +
-                "20 degrees either way. The race line keeps out of it; the flyer goes there, and the fan of grey " +
-                "lines shows how much the simulations disagree about it.",
+            "06-a-swinging-day",
+            "A day of big shifts",
+            "The wind has swung 25 degrees either way all day and it has done it everywhere, so every square " +
+                "is drawn out of that same wide histogram. The simulations disagree wildly - look at the fan - " +
+                "and no side of the course is a better bet than another, so the line keeps out of the corners, " +
+                "where one shift would decide the whole beat.",
             field,
         )
-        assertTrue(!plan.agree, "an uncertain side of the course is a gamble worth naming")
-        assertTrue(sideOf(plan.fast) > sideOf(plan.safe), "the flyer should go into the shifty half")
-        assertTrue(plan.fastRisk.spreadSeconds > plan.safeRisk.spreadSeconds)
+        assertTrue(abs(sideOf(plan.safe)) < 220.0, "the line went to a corner of a course that swings all over: ${sideOf(plan.safe)}")
+        assertTrue(plan.safeRisk.riskSeconds > 20.0, "a day of big shifts is a wide spread of times: ${plan.safeRisk}")
+        assertTrue(plan.agree, "no side of a course that swings everywhere is the better gamble")
     }
 
     private fun headedRightNow() {
@@ -229,26 +235,29 @@ class RaceLineGalleryTest {
         val plan = gallery(
             "07-headed-right-now",
             "Beating on port in a header",
-            "The course has averaged one steady wind, but the boat is on port tack and measuring 20 degrees of " +
-                "backed wind right now. That reading carries the squares around the boat and fades over a couple " +
-                "of hundred metres, so the line leaves on the lifted tack and straightens out higher up.",
+            "Everything measured so far says the wind is up the course, but the boat is on port and measuring " +
+                "it 20 degrees backed right now. That header is a third of the simulated winds, over the whole " +
+                "course at once, and the rest are the day as it has been - so the plan leans into it without " +
+                "betting the beat on one moment: the line comes back sooner than the day's wind alone would " +
+                "have it, and starting on starboard would cost a tack.",
             field,
             currentTack = Tack.PORT,
             currentShiftDegrees = -20.0,
         )
         val ignoring = RaceLinePlanner.plan(field, boat, mark, 45, Tack.PORT, null, settings)
-        // Port tack in a wind backed 20 degrees points 20 degrees higher than port tack in the mean wind,
-        // less what the square's own long-run mean pulls back: the first board is the thing to look at.
         assertEquals(45.0, firstBearing(ignoring.safe), 5.0, "the fixture means to start on port in an even wind")
+        // The wind as it stands is the day's wind pulled a third of the way onto the header, and the beat
+        // that suits it starts that much higher on port.
+        val mean = RaceLineFinder.find(WindSampler.of(field, -20.0).mean, boat, mark, 45, Tack.PORT)
         assertEquals(
-            45.0 - 20.0 * settings.currentWindWeight,
-            firstBearing(plan.safe),
-            8.0,
-            "the wind measured right now did not carry the squares around the boat",
+            45.0 - 20.0 * WindFieldSettings().currentWindFraction,
+            firstBearing(mean),
+            3.0,
+            "the wind of the moment did not carry a third of the wind the beat is worked out in",
         )
         assertTrue(
-            firstBearing(plan.safe) < firstBearing(ignoring.safe) - 8.0,
-            "the header did not lift the first board: ${firstBearing(plan.safe)} against ${firstBearing(ignoring.safe)}",
+            sideOf(plan.safe) < sideOf(ignoring.safe) - 20.0,
+            "the header did not pull the beat back: ${sideOf(plan.safe)} against ${sideOf(ignoring.safe)}",
         )
     }
 
@@ -268,12 +277,13 @@ class RaceLineGalleryTest {
                 "knows it: those squares are drawn with a far wider wedge, so the simulations disagree most there.",
             field,
         )
-        val middle = field.at(GridCell(5, 6))
-        val sailed = field.at(GridCell(1, 6))
-        assertTrue(!middle.measured && sailed.measured)
+        val middle = field.at(GridCell(1, 1))
+        val sailed = field.at(GridCell(0, 1))
+        assertTrue(!middle.measured && sailed.measured, "the fixture means to leave the middle block unsailed")
+        assertEquals(0.0, middle.share, 1e-9, "an unsailed square has nothing of its own to say")
         assertTrue(
-            middle.spreadDegrees > sailed.spreadDegrees + 2.0,
-            "the middle should be the least certain part of the course",
+            assertNotNull(field.courseWinds.standardDeviation()) > assertNotNull(sailed.winds.standardDeviation()) + 2.0,
+            "the wind the middle falls back on should be wider than what the sailed side measured",
         )
         assertTrue(plan.safe.points.last() == mark)
     }

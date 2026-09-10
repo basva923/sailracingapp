@@ -51,6 +51,8 @@ class MapUiStateTest {
         assertEquals(FavouredSide.UNKNOWN, state.favouredSide)
         assertEquals("SIDES UNKNOWN", state.sideTitle)
         assertEquals("Sail upwind on both sides to compare them (0 left, 0 right samples)", state.sideDetail)
+        assertEquals("Sail both sides · 0 L / 0 R", state.sideGlance)
+        assertEquals("", state.raceLineGlance)
         assertEquals("", state.scaleText)
         assertEquals("Mark: top of the area until you set it", state.markText)
         assertEquals("No track yet", state.trackText)
@@ -110,7 +112,10 @@ class MapUiStateTest {
         assertEquals(60.0, area.rightMeters)
         assertEquals(240.0, area.topMeters)
         assertEquals(MapUiState.view(area), state.view)
-        assertTrue(state.scaleText.startsWith("Area 120 m ×") && state.scaleText.endsWith("20 m squares"), state.scaleText)
+        assertTrue(
+            state.scaleText.startsWith("Area 120 m ×") && state.scaleText.endsWith("20 m squares · wind in 40 m blocks"),
+            state.scaleText,
+        )
         // A size the sailor chose is honoured, and the map says so when the area was too big to keep it.
         assertEquals(
             "Area 120 m × 240 m, wind up · 20 m squares",
@@ -120,10 +125,15 @@ class MapUiStateTest {
             "Area 120 m × 240 m, wind up · 20 m squares, enlarged from 10 m to fit",
             MapUiState.scaleText(MapArea(-60.0, 0.0, 120.0, 240.0, 20.0), chosenCellMeters = 10.0),
         )
-        // One arrow per cell; only the cell the boat sat in is measured, at the mean wind.
-        assertEquals((area.widthMeters / 20).toInt() * (area.heightMeters / 20).toInt(), state.arrows.size)
+        // One arrow per big square: three of them across the area, and as many rows as it is tall.
+        val windArea = assertNotNull(state.windArea)
+        assertEquals(area.widthMeters / 3, windArea.cellMeters)
+        assertEquals(area.leftMeters, windArea.leftMeters)
+        assertEquals(3 * (windArea.heightMeters / windArea.cellMeters).toInt(), state.arrows.size)
+        assertTrue(state.arrows.all { it.sizeMeters == windArea.cellMeters })
+        // Only the big square the boat sailed in is measured, and it blows the mean wind.
         val measured = state.arrows.single { it.measured }
-        assertEquals(4, measured.column)
+        assertEquals(1.0, measured.confidence, 1e-9, "the only square that was sailed holds every sample")
         assertEquals(0.0, measured.shiftDegrees, 1e-9)
         // No mark set: the top of the area, and a line from the boat up to it.
         assertFalse(state.markIsSet)
@@ -135,6 +145,7 @@ class MapUiStateTest {
         assertTrue(state.raceLine.size >= 2)
         assertTrue(state.raceLineText.startsWith("Race line: ") && state.raceLineText.endsWith(" on a bad day"), state.raceLineText)
         assertTrue(state.riskText.startsWith("No flyer: ") || state.riskText.startsWith("Flyer: "), state.riskText)
+        assertTrue(state.raceLineGlance.endsWith(" to the mark"), state.raceLineGlance)
         assertEquals("Mark: top of the area until you set it", state.markText)
         assertTrue(state.canMarkHere)
         assertTrue(state.canSetMarkFromLine)
@@ -154,6 +165,10 @@ class MapUiStateTest {
         )
         assertEquals("Race line: 1 tack · 02:05 to the mark, 02:30 on a bad day", MapUiState.raceLineText(plan(RaceLine(points, 125.0, 1), 150.0)))
         assertEquals("Race line: 3 tacks · 00:30 to the mark, 00:44 on a bad day", MapUiState.raceLineText(plan(RaceLine(points, 30.0, 3), 44.0)))
+        // The short form, for the map itself.
+        assertEquals("", MapUiState.raceLineGlance(RaceLinePlan.NONE))
+        assertEquals("no tack · 01:00 to the mark", MapUiState.raceLineGlance(plan(RaceLine(points, 60.0, 0), bad = 70.0)))
+        assertEquals("2 tacks · 02:05 to the mark", MapUiState.raceLineGlance(plan(RaceLine(points, 125.0, 2), 150.0)))
     }
 
     @Test

@@ -6,14 +6,14 @@ now to the windward mark, board by board, with the tacks in it. The amber dashed
 and not an average heading; each is a track that can be steered.
 
 They come out of a Monte Carlo. The wind over the racing area is not one thing that has been measured, it is
-a distribution that has been sampled - a mean, a spread and a speed histogram in every square - so the
-question "which way is quickest" has no single answer. Sixteen winds are drawn from what has been measured,
-the beat is searched in each of them, and every candidate line is then timed through all sixteen. The line
-whose bad day is least bad is the one drawn green; the line whose good day is best, when that is worth more
-than a tack, is drawn amber.
+a distribution that has been sampled - a histogram of wind directions and one of boat speeds in every big
+square of the course - so the question "which way is quickest" has no single answer. A thousand winds are
+drawn from what has been measured, a beat is searched in sixteen of them, and every candidate line is then
+timed through all thousand. The line whose bad day is least bad is the one drawn green; the line whose good
+day is best, when that is worth more than a tack, is drawn amber.
 
-- `domain/course/WindField.kt` is the wind over the area, square by square, blended out of what was measured.
-- `domain/course/WindSampler.kt` draws one wind out of it.
+- `domain/course/WindField.kt` is what has been measured of the wind, big square by big square.
+- `domain/course/WindSampler.kt` draws one whole wind out of it.
 - `domain/course/RaceLineFinder.kt` beats to the mark through one wind, and times any line through any wind.
 - `domain/course/RaceLinePlanner.kt` runs the Monte Carlo and picks the two lines.
 - `domain/course/WindFieldSettings.kt` and `domain/course/RaceLineSettings.kt` hold every dial (both under
@@ -27,31 +27,30 @@ Ten worked examples, drawn from the algorithm itself, are in [RACE_LINE_GALLERY.
   track: it is the bounding box of everything sailed, the start line, the boat and the mark, in cells of
   5 m or a multiple of it - chosen to fit, or set by the sailor. Metres, origin at the middle of the start
   line, "up" is the reference wind.
-- **A distribution for every square** (`WindField`):
-  - the **mean wind**, stored as its *shift*: degrees off the reference wind, positive when veered;
-  - the **spread**: how far that wind may be off, which is how much it wandered plus how much of a guess
-    the mean still is;
-  - the **speed histogram**, close-hauled speeds in quarter-metre bins, which is how a square that is half
-    puff and half hole is told apart from a steady one with the same mean.
+- **A distribution for every big square** (`WindField`). The wind is *not* worked out per square of that
+  grid. A race is sailed up the middle and back down it: cut the area into 50 m squares and almost every
+  one of them holds no close-hauled samples at all, and the few that were sailed hold a handful of seconds
+  each - which is not a distribution, it is an anecdote. So the wind is kept in **big squares**:
+  `columns` (3) of them across the area - the left, the middle and the right of the course, which is the
+  question a beat actually asks - and as many rows as it is tall, each of them square. The fine squares are
+  still there and still carry what was measured in them; they simply take their wind from the big square
+  they lie in, so the *geometry* of a line stays as sharp as the area is cut while its *wind* stays as
+  coarse as the evidence for it.
 
-  Most of a racing area is never sailed through, so a square is not handed the nearest measurement as
-  though it had been taken there. Every square - sailed through or not - is a blend of **three** things,
-  each weighed by one over how wrong it could be:
+  Each big square holds only what was measured inside it:
 
-  1. **its own samples**, worth `n / wander²`: the more of them and the steadier they were, the more the
-     square is simply what it measured;
-  2. **the samples around it**, gathered into *one* measurement (the squares weighed by how many samples
-     they hold and by `exp(−distance / correlationLengthMeters)`), worth what that measurement is worth
-     here - which the distance between them caps at `1 / (spatialSpreadDegrees² · (1 − shared²))`, however
-     many squares agree. Weighing a hundred squares of one shift one by one would count one shift as a
-     hundred opinions;
-  3. **the wind over the whole course**, wherever it was measured, worth `1 / spatialSpreadDegrees²`: what
-     is left over, and all that a corner nobody went near ever gets.
+  - a **histogram of wind directions**, in one-degree bins, kept as *shifts*: degrees off the reference
+    wind, positive when veered. Not a mean and a spread - the shape is the point, because a square that
+    swung twenty degrees either way all afternoon and one that sat five degrees veered all day are not the
+    same water however close their averages;
+  - a **histogram of close-hauled boat speeds**, in quarter-metre bins, with their exact mean beside it,
+    which is how a square that is half puff and half hole is told from a steady one with the same average;
+  - its **share** of every sample taken on the course, from 0 (nobody sailed here) to 1 (nobody sailed
+    anywhere else).
 
-  A square with fifty of its own samples keeps its own wind; a square beside one borrows most of it; a
-  square in the far corner shows the day's breeze, with the spread to say so. The speed histograms are
-  blended with the same three weights, as a *mixture*, so an unsailed square between a puffy corner and a
-  steady one is drawn sometimes from the one and sometimes from the other.
+  Nothing is smoothed, blended or interpolated: a square nobody sailed through holds nothing and says so
+  with a share of zero. What such a square should *blow* is a question about drawing a wind, not about
+  measuring one, and it is answered below.
 - **The boat**: where it is, **which tack it is on**, and **the wind it is measuring right now** - its own
   heading and tack angle, averaged over its last thirty close-hauled samples, so half a minute of sailing
   rather than one wave. Both are null when it is not beating, and then neither is used.
@@ -141,8 +140,9 @@ Sketch of a beat through the squares, wind up the page:
 seconds = length in metres / the boat speed of that square  (+ the tack loss when it is sailed on the other tack)
 ```
 
-The speed is the square's own: the mean of what was measured there, or one drawn from its histogram in a
-simulation, or 3 m/s where nothing has been measured yet (`SailingConditions.DEFAULT_BOAT_SPEED_MPS`). So a
+The speed is that of the big square the board crosses: the mean of what was measured there, or one drawn
+from its histogram in a simulation, or 3 m/s where nothing has been measured anywhere yet
+(`SailingConditions.DEFAULT_BOAT_SPEED_MPS`). So a
 board through a puff is worth more than a board through a hole, and a square in the lee of an island is
 sailed through slowly whichever way the wind in it points.
 
@@ -196,7 +196,7 @@ time to the last decimal in all ten.
 Two lines can take exactly the same time - in an even wind, a beat and its mirror image do - and then the
 one the search reaches first wins. That is deterministic between runs, but it favours neither side.
 
-The inner loop is written for speed rather than for looks, because the Monte Carlo runs it sixteen times:
+The inner loop is written for speed rather than for looks, because the Monte Carlo runs it sixteen times over:
 every square's wind is turned into a cosine and a sine once per search, the two close-hauled courses come
 out of those by the angle-sum identities, "can the boat lay this" and "how long is the beat from here" are
 comparisons of a dot product with the cosine of the tack angle, and the best time per state lives in an
@@ -210,47 +210,67 @@ it many times.
 
 ### Drawing a wind
 
-`WindSampler` draws a whole field at once - a direction and a boat speed for every square:
+`WindSampler` draws a whole field at once - a direction and a boat speed for every big square. Which of
+**four** things a square blows this time round is decided by the dice:
 
-- Every square already has a **mean** and a **spread** from the blend above, floored at `minSpreadDegrees`
-  (no wind is known better than 3°: the tack angle it is read from is a model, the compass wanders, the
-  helm steers) and capped at `maxSpreadDegrees`.
-- **The wind the boat is measuring right now** moves those means and narrows those spreads. In the square
-  the boat is in, the mean is pulled `currentWindWeight` (0.8) of the way onto it and the spread is cut by
-  `√(1 − weight)`, because that wind has just been measured. The weight fades as `exp(−distance / range)`
-  with `currentWindRangeMeters` (200 m), so the header the boat is in now says a lot about the water just
-  ahead and almost nothing about the far corner.
-- **The squares do not come out as a chequerboard.** Wind arrives in shifts hundreds of metres wide, so the
-  draws are correlated: independent normal deviates are run through a first order filter across the area and
-  then up it, which leaves every square with exactly the spread it should have and any two of them
-  correlated by `exp(−distance / correlationLengthMeters)` (150 m), counted in squares along and up. A drawn
-  wind is a few broad shifts lying over the course.
-- **The speeds are drawn from the histograms**, not from a bell curve, through the same correlated field:
-  a square that is half puff and half hole is drawn as a puff or as a hole and never as its mean. Only
-  `speedSpreadFactor` (0.6) of the histogram's spread is felt, because the histogram is of speeds a second
-  apart and a whole board across a square averages a handful of them.
+| | Share | What it is |
+| --- | --- | --- |
+| the wind of the moment | `currentWindFraction` = 35 % | What the boat is measuring *right now*, from its own heading and tack angle. It is the freshest measurement of the day and a beat is planned in the wind you are in, not the wind you averaged an hour ago. It is drawn **once per simulation and laid over the whole course**: in a third of the winds every square blows it and in the rest none of them does, because a shift the boat is sitting in is a shift over the water and not a scattering of squares that happen to agree. Without one - the boat is not close-hauled - its share goes to the histograms. |
+| the square's own history | `measuredFraction` (60 %) × `share` | The histogram measured inside that square. |
+| the day's history | `measuredFraction` (60 %) × (1 − `share`) | The histogram of every sample taken anywhere on the course. So a square where half the race was sailed mostly blows its own wind, a square nobody went near blows the day's wind, and nothing had to be interpolated to say so. |
+| anything at all | `randomWindFraction` = 5 % | A direction drawn flat around the compass: the shift nobody saw coming. It is what a line has to survive to be called safe. |
+
+A direction out of a histogram is drawn from **exactly** the distribution it holds - a bin in proportion to
+its count, and anywhere inside that bin - never from a bell curve fitted over it. A wind that has been
+oscillating between two shifts is drawn as one shift or the other, which is what it does, instead of as the
+middle it never blows.
+
+Every big square is drawn on its own, so one drawn wind is not a single shift laid over the course: it is
+the left, the middle and the right each doing their own thing, which is the situation the race line is
+there to judge. A block is about a third of the width of the area - the scale a shift actually has - so
+treating one as independent of the next is honest, where the same assumption over 20 m squares would have
+been a chequerboard.
+
+**The speeds are drawn alongside and independently**: from the square's own speed histogram or the whole
+course's, by the same share, so a corner that was half puff and half hole comes out as a puff or a hole and
+never as its mean. Only `speedSpreadFactor` (0.6) of the histogram's spread is felt, because the histogram
+is of speeds a second apart and a whole board across a square averages a handful of them. A square being
+shifted says nothing about it being windy.
+
+The **mean wind** - every square at the mean of that whole mixture, the four weighed exactly as they are
+weighed in a draw - is the wind the plain candidate line is searched in.
+
+A thousand of these cost almost nothing: a handful of dice per big square, and the histograms are turned
+into cumulative tables once per plan. It is *searching* a beat that is dear, which is why only sixteen of
+the thousand get one.
 
 ### Picking the two lines
 
-1. The beat is searched in each of the `runs` (16) drawn winds, and once in the mean wind. That gives one
-   candidate line per wind: every candidate is the right answer to *some* wind the course might have, which
-   is what keeps the list sensible - a candidate is never a line nobody would sail.
-2. Every candidate is then **sailed through every drawn wind** (`RaceLineFinder.secondsToSail`): the same
-   track, timed at each square's drawn speed, with any leg that the drawn wind no longer lets the boat lay
-   charged as the beat it has become. A line that overstands its layline in one wind is sailing away from
-   the mark in another, and a line that hunts a puff in one is sitting in a hole in another; both come out
-   of the timing without a rule about corners or laylines being written anywhere.
+1. `runs` (1000) winds are drawn. A beat is searched in the first `searchRuns` (16) of them and once in the
+   mean wind. That gives one candidate line per searched wind: every candidate is the right answer to *some*
+   wind the course might have, which is what keeps the list sensible - a candidate is never a line nobody
+   would sail. Searching all thousand would only find the same lines again, for sixty times the work. A wind
+   drawn wild enough to leave no beating to the mark at all sends the search back with the straight course
+   to it, and that is left out of the list: a straight course is charged the ideal beat and never a tack, so
+   it would flatter itself against every line that says how the beat is actually sailed.
+2. Every candidate is then **sailed through every one of the thousand drawn winds**
+   (`RaceLineFinder.secondsToSail`): the same track, timed at each square's drawn speed, with any leg that
+   the drawn wind no longer lets the boat lay charged as the beat it has become. A line that overstands its
+   layline in one wind is sailing away from the mark in another, and a line that hunts a puff in one is
+   sitting in a hole in another; both come out of the timing without a rule about corners or laylines being
+   written anywhere.
 3. Because all the candidates are timed over the *same* winds, the difference between two of them is a real
    difference and not the noise of two separate draws.
 4. The **race line** is the candidate whose bad day (the time it is beaten by in one run in five,
    `riskFraction`) is least bad. The **flyer** is the candidate whose good day (the time it beats in one run
-   in five) is best - but only when that is worth more than a tack, because in a settled wind a dozen lines
-   are within a second of each other and the chance of the draw would decide which of them is "fastest".
-   Otherwise there is no flyer and the map says so.
+   in five) is best. Both have to better the line through the mean wind - the answer to the wind as it
+   stands - by more than a tack, or that plain line stays: up an even beat half a dozen lines are within a
+   second of one another and which of them has the best day is the luck of a thousand draws, not a side of
+   the course, and a race line has to stay still enough to steer to.
 
 The map shows the mean time over the runs for each, the bad day for the race line, the good day for the
-flyer, and how many of the winds the flyer actually won. That last number is the honest size of the bet: a
-flyer that wins 5 of 16 is a flyer.
+flyer, and how many of the thousand winds the flyer actually won. That last number is the honest size of the
+bet: a flyer that wins 300 of 1000 is a flyer.
 
 ## The dials
 
@@ -260,24 +280,22 @@ hundred metres in a shifty coastal or inland breeze. What the wind over the area
 
 | Dial | Default | What it says |
 | --- | --- | --- |
-| `minCellSamples` | 3 | How many of its own samples a square needs before the map draws its arrow solid. |
-| `correlationLengthMeters` | 150 | How far the wind hangs together: how much of a neighbour's wind is this square's, and how smooth a drawn field is. |
-| `neighbourhoodRadii` | 3 | How many correlation lengths away a square still listens. |
-| `spatialSpreadDegrees` | 12 | How much the mean wind differs from one part of the course to another: what an unsailed corner is left with. |
-| `sampleSpreadDegrees` | 8 | How much the wind is assumed to wander where that cannot be measured yet. |
-| `minSpreadDegrees` | 3 | No square's wind is known better than this. |
-| `maxSpreadDegrees` | 30 | No square is a lottery either. |
-| `minWeightFraction` | 0.005 | A neighbour worth less than this is left out of the speed blend. |
+| `columns` | 3 | How many big squares the area is cut into across: the left, the middle and the right of the course. The rows follow, because a big square is square. |
+| `currentWindFraction` | 0.35 | How many of the simulated winds are simply what the boat is measuring right now, over the whole course. |
+| `randomWindFraction` | 0.05 | How many of them are a direction drawn flat around the compass. |
+| `minBlockSamples` | 3 | How many of its own samples a big square needs before the map draws its arrow solid. |
+| `speedSpreadFactor` | 0.6 | How much of the speed histogram's spread a whole board feels. |
+| `minBoatSpeedMps` | 0.5 | The slowest a drawn speed may be, so a line never costs eternity. |
+
+What is left of the 100 % - 60 % by default - is the measured wind, split between the square's own
+histogram and the whole course's by how much of the day's evidence the square holds.
 
 How the search makes use of it is `RaceLineSettings`:
 
 | Dial | Default | What it says |
 | --- | --- | --- |
-| `runs` | 16 | How many winds are tried. Twice as many is twice the work and a slightly steadier answer. |
-| `currentWindWeight` | 0.8 | How much the wind measured right now overrules the square's own mean. |
-| `currentWindRangeMeters` | 200 | How far that belief reaches; a third of it is left one range away. |
-| `speedSpreadFactor` | 0.6 | How much of the speed histogram's spread a whole board feels. |
-| `minBoatSpeedMps` | 0.5 | The slowest a drawn speed may be, so a line never costs eternity. |
+| `runs` | 1000 | How many winds are drawn and every candidate timed through. Cheap: turn it up for a steadier answer to "how bad is its bad day". |
+| `searchRuns` | 16 | How many of those winds get a beat searched in them. The dear one: a searched beat costs about a hundred drawn winds. |
 | `riskFraction` | 0.2 | Which end of the spread counts as luck: one run in five, either way. |
 | `recomputeShiftDegrees` | 5 | How far the wind of the moment moves before the whole plan is done again. |
 | `seed` | fixed | The same course always gives the same advice. |
@@ -318,8 +336,13 @@ between equally quick alternatives, and a sailor cannot steer to a line that mov
   them and stays in the middle.
 - Where one side has more wind, the line goes there even with the wind straight up the course: that is the
   speed histograms talking.
-- **An amber dashed line means the two sides are a bet.** It appears where one side is shiftier, puffier or
-  simply less sailed than the other: more to win there, and more to lose. The caption says how many of the
-  simulated winds it actually won. Sail the green one to keep a place; take the amber one when you need one.
+- **An amber dashed line means the two sides are a bet.** It appears where one side is puffier, or where
+  the side that pays depends on which way the wind goes: more to win there, and more to lose. The caption
+  says how many of the thousand simulated winds it actually won. Sail the green one to keep a place; take
+  the amber one when you need one.
+- **A big square only speaks for itself as far as its share of the day goes.** Sail three beats up the
+  right of the course and the right blows what you measured there; measure a couple of minutes in a corner
+  and that corner mostly blows the day's wind, however odd those two minutes were. That is the price of
+  never inventing a wind for water nobody has sailed.
 - In a narrow racing area the line bounces off the edges of the area, because the area is what has been
   sailed so far. Sail wider and the area grows with the track.

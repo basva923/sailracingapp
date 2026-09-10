@@ -34,14 +34,20 @@ public data class LineRisk(
  * The two lines up the beat: the one to sail and the one to gamble on.
  *
  * @property safe the line whose bad day is the least bad. It is the line the map draws: it gives away a
- *   little on a good day to lose less on a bad one, which over a series is how places are kept.
+ *   little on a good day to lose less on a bad one, which over a series is how places are kept. Where
+ *   nothing betters the line through the mean wind by a tack, that line is the safe one: a smaller
+ *   difference than that is the luck of the draw, and a race line has to stay still enough to steer to.
  * @property fast the line with the best good day, when that is worth at least a tack; the safe line itself
  *   when it is not. Where the two differ it is the flyer: a side of the course that pays more when the wind
  *   does what it did in a fifth of the simulations.
  * @property winFraction how often the fast line actually beat the safe one, over the same winds: 0.5 is a
  *   coin toss, 0.2 is a line that only comes good when everything falls right.
- * @property sampled the best line of every single simulation - the spread of opinion itself. Where they
- *   all lie on top of each other the beat has one answer; where they fan out, it does not.
+ * @property sampled the best line of every simulation a beat was searched in - the spread of opinion
+ *   itself. Where they all lie on top of each other the beat has one answer; where they fan out, it does
+ *   not. There are [RaceLineSettings.searchRuns] of them, not one per run: every one of them is timed
+ *   through all [runs] winds, but searching a thousand beats to draw a thousand lines that agree would be
+ *   a thousand times the work for the same fan.
+ * @property runs how many winds every candidate was timed through.
  */
 public data class RaceLinePlan(
     val safe: RaceLine = RaceLine.NONE,
@@ -77,17 +83,19 @@ public data class RaceLinePlan(
  * ## What it does
  *
  * 1. [RaceLineSettings.runs] winds are drawn over the racing area by [WindSampler] - each of them a whole
- *    field of directions and boat speeds, drawn from what was measured in every square, spread out from
- *    the wind the boat is measuring right now.
- * 2. [RaceLineFinder] beats to the mark through each of them, from the tack the boat is on. That gives one
- *    candidate line per wind, plus the line through the mean wind: every candidate is the right answer to
- *    *some* wind the course might have, which is what keeps the list sensible.
+ *    field of directions and boat speeds, drawn per big square from the histogram measured there, from the
+ *    histogram of the whole course, from the wind the boat is measuring right now, or from nothing at all.
+ * 2. [RaceLineFinder] beats to the mark through the first [RaceLineSettings.searchRuns] of them, from the
+ *    tack the boat is on. That gives one candidate line per searched wind, plus the line through the mean
+ *    wind: every candidate is the right answer to *some* wind the course might have, which is what keeps
+ *    the list sensible. Searching every drawn wind would only find the same lines again.
  * 3. Every candidate is then sailed through *every* drawn wind ([RaceLineFinder.secondsToSail]). Because
- *    all the candidates are timed over the same winds, the difference between two of them is a real
- *    difference and not the noise of two separate draws.
+ *    all the candidates are timed over the same thousand winds, the difference between two of them is a
+ *    real difference and not the noise of two separate draws.
  * 4. The line whose slow runs are least slow is the **safe** line; the line whose quick runs are quickest
- *    is the **fast** one, as long as it promises more than a tack costs - a gamble smaller than that is the
- *    noise of the draw, not a side of the course. In a settled wind the two are the same line and there is
+ *    is the **fast** one. Both have to better the line through the mean wind - the answer to the wind as it
+ *    stands - by more than a tack costs, or that plain line stays: a difference smaller than a tack is the
+ *    noise of the draw, not a side of the course. In a settled wind all three are one line and there is
  *    nothing to choose.
  *
  * ## Why the times are what they are
@@ -116,24 +124,37 @@ public object RaceLinePlanner {
         settings: RaceLineSettings = RaceLineSettings(),
         tackLossSeconds: Double = RaceLineFinder.TACK_LOSS_SECONDS,
     ): RaceLinePlan {
-        val winds = List(settings.runs) {
-            WindSampler.sample(field, from, currentShiftDegrees, settings, Random(settings.seed + it))
-        }
+        val sampler = WindSampler.of(field, currentShiftDegrees)
+        // One stream of dice for the whole Monte Carlo, from the settings' seed: the same course always
+        // draws the same thousand winds, and a run is not repeatable one wind at a time.
+        val random = Random(settings.seed)
+        val winds = List(settings.runs) { sampler.draw(random) }
         fun beat(conditions: SailingConditions) =
             RaceLineFinder.find(conditions, from, to, tackAngleDegrees, currentTack, tackLossSeconds)
 
         // The mean wind first, so that a beat everyone agrees on is drawn exactly as it was before there
         // was a Monte Carlo, and a tie between candidates falls to it.
         val candidates = LinkedHashMap<List<Long>, RaceLine>()
-        val mean = beat(WindSampler.mean(field, from, currentShiftDegrees, settings))
+        val mean = beat(sampler.mean)
         candidates[signature(mean)] = mean
-        val sampled = winds.map(::beat)
+        // A wind drawn wild enough to leave no beating to the mark at all sends the search back with the
+        // straight course to it ([RaceLine.direct]). That is not a line anyone sails up a beat, and timing
+        // it would flatter it, so it is left out - unless the leg is not a beat in the first place, which
+        // is what the mean wind says.
+        val sampled = winds.take(settings.searched).map(::beat).filter { mean.direct || !it.direct }
         for (line in sampled) candidates.putIfAbsent(signature(line), line)
 
         val scored = candidates.values.map { line ->
             Scored(line, winds.map { RaceLineFinder.secondsToSail(it, line, tackAngleDegrees, currentTack, tackLossSeconds) }, settings)
         }
-        val safe = scored.minBy { it.risk.badSeconds }
+        // The line through the mean wind is the answer to the wind as it stands, and it is the first
+        // candidate; another line has to better its bad day by more than a tack to take its place. Half a
+        // dozen lines up an even beat are within a second of one another and which of them has the best bad
+        // day is the luck of a thousand draws, not a side of the course - and a race line that jumps from
+        // one of them to the next as the dice fall cannot be steered to.
+        val plain = scored.first()
+        val steadiest = scored.minBy { it.risk.badSeconds }
+        val safe = if (plain.risk.badSeconds - steadiest.risk.badSeconds < tackLossSeconds) plain else steadiest
         val bold = scored.minBy { it.risk.goodSeconds }
         // In a settled wind a dozen lines are within a second of one another and the chance of the draw
         // decides which of them has the best good day. A flyer has to promise more than a tack costs before

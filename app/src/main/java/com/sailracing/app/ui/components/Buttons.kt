@@ -58,6 +58,33 @@ fun ActionButton(
     }
 }
 
+/**
+ * A small button laid over the map or in a bar: still a finger wide, but not so tall that it hides the
+ * water behind it. Translucent, so the map shows through where it sits.
+ */
+@Composable
+fun SmallButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    testTag: String? = null,
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier
+            .heightIn(min = 40.dp)
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+        shape = MaterialTheme.shapes.medium,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.85f),
+            contentColor = RaceColors.White,
+        ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+    ) {
+        Text(text = text, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+    }
+}
+
 /** A yes/no confirmation for actions that are hard to undo during a race (stopping the timer, resets). */
 @Composable
 fun ConfirmDialog(
