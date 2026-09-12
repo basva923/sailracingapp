@@ -16,6 +16,7 @@ import android.os.Looper
 import androidx.core.content.ContextCompat
 import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.model.PositionFix
+import com.sailracing.domain.race.HeadingSource
 import com.sailracing.domain.race.RaceEvent
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -24,19 +25,23 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.merge
 
 /**
- * Real sensors: GPS position at [gpsIntervalMillis] and the rotation-vector compass at a low rate.
+ * Real sensors: GPS position at [gpsIntervalMillis], and the rotation-vector compass when the sailor takes
+ * the heading from it ([headingSource]).
  *
  * The plain [LocationManager] is used rather than Play Services so the app works on every device, including
  * de-Googled ones, and has no extra dependency. GPS at 1 Hz is the dominant battery cost and is unavoidable
- * for an accurate time to the line; the compass is sampled slowly and only matters while stationary.
- * The compass heading is read for a phone standing upright on the mast, see [DeviceHeading].
+ * for an accurate time to the line. The compass is registered only when it is the chosen source, and then
+ * unbatched at [COMPASS_SAMPLING_MICROS], because answering sooner than the GPS course is the whole point
+ * of choosing it. Its heading is read for a phone standing upright on the mast, see [DeviceHeading].
  */
 class AndroidSensorSource(
     private val context: Context,
+    private val headingSource: HeadingSource = HeadingSource.COURSE_OVER_GROUND,
     private val gpsIntervalMillis: Long = 1_000L,
 ) : SensorSource {
 
-    override fun events(): Flow<RaceEvent> = merge(locations(), compass())
+    override fun events(): Flow<RaceEvent> =
+        if (headingSource == HeadingSource.COMPASS) merge(locations(), compass()) else locations()
 
     private fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -68,13 +73,14 @@ class AndroidSensorSource(
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
         }
-        manager.registerListener(listener, sensor, COMPASS_SAMPLING_MICROS, COMPASS_BATCH_MICROS)
+        manager.registerListener(listener, sensor, COMPASS_SAMPLING_MICROS, NO_BATCHING)
         awaitClose { manager.unregisterListener(listener) }
     }
 
     private companion object {
-        const val COMPASS_SAMPLING_MICROS = 500_000
-        const val COMPASS_BATCH_MICROS = 1_000_000
+        /** 5 Hz: a boat does not swing faster than that, and every reading costs a pass through the engine. */
+        const val COMPASS_SAMPLING_MICROS = 200_000
+        const val NO_BATCHING = 0
     }
 }
 

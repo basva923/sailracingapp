@@ -52,10 +52,14 @@ class SailRacingAppTest {
         graph.scheduler.runCurrent()
         compose.waitForIdle()
 
+        // The race screen: the big numbers and nothing to press.
         compose.onNodeWithTag("nav_RACE").performClick()
-        compose.onNodeWithTag("courseMap").assertIsDisplayed()
-        // The wind and the mark are set from the details, in the map's place.
-        compose.onNodeWithTag("toggleDetails").performClick()
+        compose.onNodeWithTag("advice").assertIsDisplayed()
+        compose.onNodeWithTag("speed").assertIsDisplayed()
+        compose.onNodeWithTag("courseMap").assertDoesNotExist()
+
+        // The wind is set on the wind screen.
+        compose.onNodeWithTag("nav_WIND").performClick()
         compose.onNodeWithTag("configuredWind").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("windFromStarboard").performScrollTo().performClick()
         graph.scheduler.runCurrent()
@@ -66,10 +70,9 @@ class SailRacingAppTest {
         graph.scheduler.runCurrent()
         assertEquals(270, graph.raceSession.state.value.wind.settings.directionDegrees)
 
-        // Back to the map, and to the details again for the mark.
-        compose.onNodeWithTag("toggleDetails").performClick()
+        // The mark and the track on the map screen.
+        compose.onNodeWithTag("nav_MAP").performClick()
         compose.onNodeWithTag("courseMap").assertIsDisplayed()
-        compose.onNodeWithTag("toggleDetails").performClick()
         compose.onNodeWithTag("markHere").performScrollTo().performClick()
         graph.scheduler.runCurrent()
         assertEquals(GeoPoint(51.14, 5.83), graph.raceSession.state.value.windwardMark)
@@ -196,7 +199,7 @@ class SailRacingAppTest {
     }
 
     @Test
-    fun movesToTheWindScreenAtTheGun() {
+    fun movesToTheRaceScreenAtTheGun() {
         val graph = TestAppGraph()
         val viewModel = RaceViewModel(graph.raceSession, graph.repository)
         graph.startSession()
@@ -207,7 +210,7 @@ class SailRacingAppTest {
         compose.waitForIdle()
         compose.onNodeWithTag("clock").assertIsDisplayed()
 
-        // The gun: the next tick sees the race running and the app shows the wind screen.
+        // The gun: the next tick sees the race running and the app shows the race screen.
         graph.clock.now += 61_000
         graph.scheduler.advanceTimeBy(300)
         graph.scheduler.runCurrent()

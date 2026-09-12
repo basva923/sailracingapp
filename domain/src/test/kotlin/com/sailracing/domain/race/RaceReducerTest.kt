@@ -11,6 +11,7 @@ import com.sailracing.domain.stats.SpeedStats
 import com.sailracing.domain.timer.Cue
 import com.sailracing.domain.timer.CuePolicy
 import com.sailracing.domain.timer.TimerState
+import com.sailracing.domain.wind.Tack
 import com.sailracing.domain.wind.WindHistogram
 import com.sailracing.domain.wind.WindHistory
 import com.sailracing.domain.wind.WindSettings
@@ -24,6 +25,9 @@ class RaceReducerTest {
 
     private fun RaceState.apply(vararg events: RaceEvent): RaceState =
         events.fold(this) { state, event -> RaceReducer.reduce(state, event).state }
+
+    /** A sailor who takes the heading from the compass; by default it is the GPS course. */
+    private val compassState = RaceState(settings = RaceSettings(headingSource = HeadingSource.COMPASS))
 
     // --- sensors ---------------------------------------------------------------------------------
 
@@ -53,7 +57,7 @@ class RaceReducerTest {
         assertNull(noHeading.track.latest?.headingDegrees)
         assertNull(noHeading.track.latest?.upwindWindDegrees)
 
-        val noSpeed = RaceState().apply(RaceEvent.CompassUpdated(315.0), RaceEvent.FixReceived(fix(1_000, speedMps = null)))
+        val noSpeed = compassState.apply(RaceEvent.CompassUpdated(315.0), RaceEvent.FixReceived(fix(1_000, speedMps = null)))
         assertEquals(315.0, noSpeed.navigation.headingDegrees)
         assertTrue(noSpeed.wind.histogram.isEmpty)
 
@@ -64,7 +68,7 @@ class RaceReducerTest {
 
     @Test
     fun `reaching is sampled in history but counts for no statistics`() {
-        val reaching = RaceState(settings = RaceSettings(upwindMaxTwaDegrees = 60, downwindMinTwaDegrees = 120))
+        val reaching = RaceState(settings = RaceSettings(closeHauledBandDegrees = 20, downwindMinTwaDegrees = 120))
             .apply(RaceEvent.FixReceived(fix(1_000, courseDegrees = 280.0)))
         assertTrue(reaching.wind.histogram.isEmpty)
         assertEquals(1, reaching.wind.history.samples.size)
@@ -72,7 +76,8 @@ class RaceReducerTest {
         assertEquals(0, reaching.speedStats.upwind.count)
         assertEquals(0, reaching.speedStats.downwind.count)
 
-        val wide = RaceState(settings = RaceSettings(upwindMaxTwaDegrees = 90))
+        // A boat that foots a lot may widen the band: 80 off the wind is within 35 of a 45 degree tack angle.
+        val wide = RaceState(settings = RaceSettings(closeHauledBandDegrees = 35))
             .apply(RaceEvent.FixReceived(fix(1_000, courseDegrees = 280.0)))
         assertEquals(1, wide.wind.histogram.totalSamples)
         assertEquals(1, wide.speedStats.upwind.count)
@@ -141,7 +146,8 @@ class RaceReducerTest {
 
     @Test
     fun `compass applies the mounting offset`() {
-        val state = RaceState(settings = RaceSettings(compassOffsetDegrees = 180)).apply(RaceEvent.CompassUpdated(10.0))
+        val state = RaceState(settings = RaceSettings(headingSource = HeadingSource.COMPASS, compassOffsetDegrees = 180))
+            .apply(RaceEvent.CompassUpdated(10.0))
         assertEquals(190.0, state.navigation.compassHeadingDegrees)
         assertEquals(190.0, state.navigation.headingDegrees)
         assertEquals(HeadingSource.COMPASS, state.navigation.headingSource)
@@ -243,13 +249,70 @@ class RaceReducerTest {
         // Thirty close-hauled samples on starboard at 340: the wind is really 25, not the 0 that was set.
         var state = RaceState()
         for (t in 1L..30L) state = state.apply(RaceEvent.FixReceived(fix(t * 1_000, courseDegrees = 340.0)))
-        assertEquals(25.0, state.wind.reference.directionDegrees, 1e-9)
-        assertTrue(state.wind.reference.isMeasured)
+        assertEquals(25.0, state.wind.reference(30_000).directionDegrees, 1e-9)
+        assertTrue(state.wind.reference(30_000).isMeasured)
+        assertNull(state.wind.measuredTackAngleDegrees)
         // Heading 80 is a reach against the set wind (80 off) but close-hauled on port against the real one (55 off).
         val port = state.apply(RaceEvent.FixReceived(fix(60_000, courseDegrees = 80.0)))
         assertEquals(31, port.wind.histogram.totalSamples)
         assertEquals(1, port.wind.histogram.count(35))
         assertEquals(35.0, assertNotNull(port.track.latest?.upwindWindDegrees), 1e-9)
+    }
+
+    @Test
+    fun `both tacks sailed give the wind between them and the tack angle the boat really sails`() {
+        // Thirty samples close-hauled on starboard at 312 and thirty on port at 48: the boat tacks through
+        // 96 degrees around a wind of 0; at the set angle of 45 the estimates sit at 357 and 3.
+        var state = RaceState(wind = WindState(settings = WindSettings(directionDegrees = 10, tackAngleDegrees = 45)))
+        for (t in 1L..30L) state = state.apply(RaceEvent.FixReceived(fix(t * 1_000, courseDegrees = 312.0)))
+        // The tack itself is a fast turn and is not sampled; the boat then settles on port.
+        state = state.apply(RaceEvent.FixReceived(fix(31_000, courseDegrees = 48.0)))
+        for (t in 32L..61L) state = state.apply(RaceEvent.FixReceived(fix(t * 1_000, courseDegrees = 48.0)))
+        val reference = state.wind.reference(62_000)
+        assertEquals(0.0, reference.directionDegrees, 1e-9)
+        assertTrue(reference.isMeasured)
+        assertEquals(45.0, reference.tackAngleDegrees, 1e-9)
+        assertEquals(48.0, assertNotNull(reference.measuredTackAngleDegrees), 1e-9)
+        assertEquals(48.0, assertNotNull(state.wind.measuredTackAngleDegrees), 1e-9)
+        // The estimates keep to the set angle: 48 on port at 45 reads as a wind of 3, for the sailor to
+        // see and set the angle by.
+        assertEquals(3.0, assertNotNull(state.track.latest?.upwindWindDegrees), 1e-9)
+        assertEquals(Tack.PORT, state.wind.history.latest?.tack)
+        assertEquals(48.0, state.wind.history.latest?.headingDegrees)
+        // The measurement outlives the window of the tacks it was read off: a long board on port alone,
+        // forty minutes on, still shows it, and the wind is the middle of what that board measured.
+        var later = state
+        for (t in 0L..30L) later = later.apply(RaceEvent.FixReceived(fix(40 * 60_000L + t * 1_000, courseDegrees = 50.0)))
+        assertEquals(48.0, assertNotNull(later.wind.measuredTackAngleDegrees), 1e-9)
+        assertEquals(5.0, later.wind.reference(40 * 60_000L + 30_000).directionDegrees, 1e-9)
+        // Resetting the statistics forgets the samples but not what the boat is: the angle stays.
+        val reset = later.apply(RaceEvent.ResetWindStatistics)
+        assertTrue(reset.wind.history.samples.isEmpty())
+        assertEquals(48.0, assertNotNull(reset.wind.measuredTackAngleDegrees), 1e-9)
+        assertEquals(48.0, assertNotNull(later.apply(RaceEvent.ClearSession).wind.measuredTackAngleDegrees), 1e-9)
+    }
+
+    @Test
+    fun `the wind set from a tack is read off the last twenty seconds, not the last wave`() {
+        // Ten seconds at 315, then a wave knocks the boat to 322 for the fix the button is pressed on.
+        var state = RaceState()
+        for (t in 1L..10L) state = state.apply(RaceEvent.FixReceived(fix(t * 1_000, courseDegrees = 315.0)))
+        state = state.apply(RaceEvent.FixReceived(fix(11_000, courseDegrees = 322.0)))
+        assertEquals(322.0, state.navigation.headingDegrees)
+        val fromStarboard = state.apply(RaceEvent.SetWindFromStarboardTack)
+        // The mean of eleven headings, ten of them 315: just under 316, so the wind is 316 + 45 = 361 -> 1.
+        assertEquals(1, fromStarboard.wind.settings.directionDegrees)
+        val fromPort = state.apply(RaceEvent.SetWindFromPortTack)
+        assertEquals(271, fromPort.wind.settings.directionDegrees)
+        // Samples from the tack before do not count: after a tack, only the new tack's headings do - and
+        // until there is one of those (the tack itself is not sampled), the heading of the moment.
+        val tacking = state.apply(RaceEvent.FixReceived(fix(12_000, courseDegrees = 45.0)))
+        assertEquals(0, tacking.apply(RaceEvent.SetWindFromPortTack).wind.settings.directionDegrees)
+        val tacked = tacking.apply(RaceEvent.FixReceived(fix(13_000, courseDegrees = 47.0)))
+        assertEquals(2, tacked.apply(RaceEvent.SetWindFromPortTack).wind.settings.directionDegrees)
+        // Without any samples the heading of the moment is all there is.
+        val unsampled = compassState.apply(RaceEvent.CompassUpdated(300.0))
+        assertEquals(345, unsampled.apply(RaceEvent.SetWindFromStarboardTack).wind.settings.directionDegrees)
     }
 
     // --- countdown ---------------------------------------------------------------------------------
@@ -332,7 +395,7 @@ class RaceReducerTest {
         assertEquals(WindSettings(), RaceState().apply(RaceEvent.SetWindFromPortTack).wind.settings)
         assertEquals(WindSettings(), RaceState().apply(RaceEvent.SetWindFromStarboardTack).wind.settings)
 
-        val heading = RaceState().apply(RaceEvent.CompassUpdated(100.0))
+        val heading = compassState.apply(RaceEvent.CompassUpdated(100.0))
         assertEquals(55, heading.apply(RaceEvent.SetWindFromPortTack).wind.settings.directionDegrees)
         assertEquals(145, heading.apply(RaceEvent.SetWindFromStarboardTack).wind.settings.directionDegrees)
     }

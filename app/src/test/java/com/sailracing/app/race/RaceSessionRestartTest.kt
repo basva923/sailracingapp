@@ -29,9 +29,9 @@ class RaceSessionRestartTest {
         var created = 0
         val session = RaceSession(
             repository = repository,
-            sensorSourceFactory = { simulation, sessionClock ->
+            sensorSourceFactory = { settings, sessionClock ->
                 created++
-                SimulatedSensorSource(result, sessionClock, includeActions = simulation.autoPlayActions, loop = true)
+                SimulatedSensorSource(result, sessionClock, includeActions = settings.simulation.autoPlayActions, loop = true)
             },
             cuePlayer = RecordingCuePlayer(),
             scope = this,

@@ -3,11 +3,14 @@ package com.sailracing.app.ui
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Sailing
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
@@ -24,8 +27,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.sailracing.app.ui.race.RaceActions
+import com.sailracing.app.ui.map.MapActions
+import com.sailracing.app.ui.map.MapScreen
 import com.sailracing.app.ui.race.RaceScreen
 import com.sailracing.app.ui.session.SessionActions
 import com.sailracing.app.ui.session.SessionScreen
@@ -34,18 +39,22 @@ import com.sailracing.app.ui.settings.SettingsScreen
 import com.sailracing.app.ui.start.StartActions
 import com.sailracing.app.ui.start.StartScreen
 import com.sailracing.app.ui.theme.RaceColors
+import com.sailracing.app.ui.wind.WindActions
+import com.sailracing.app.ui.wind.WindScreen
 import com.sailracing.domain.timer.RacePhase
 
 /** The app's top-level destinations. */
 enum class Screen(val label: String, val icon: ImageVector) {
     SESSION("Session", Icons.Filled.Sailing),
     START("Start", Icons.Filled.Timer),
-    RACE("Race", Icons.Filled.Map),
+    RACE("Race", Icons.Filled.Speed),
+    WIND("Wind", Icons.Filled.Air),
+    MAP("Map", Icons.Filled.Map),
     SETTINGS("Settings", Icons.Filled.Settings),
 }
 
 /**
- * Root of the UI: bottom navigation between the four screens, all fed by one view model. It opens on the
+ * Root of the UI: bottom navigation between the six screens, all fed by one view model. It opens on the
  * Session screen, where a session is started. At the starting gun the app moves to the racing screen by
  * itself: the start is over, the beat begins.
  */
@@ -68,7 +77,9 @@ fun SailRacingApp(viewModel: RaceViewModel, versionName: String = "", initialScr
                         selected = screen == destination,
                         onClick = { screen = destination },
                         icon = { Icon(destination.icon, contentDescription = destination.label) },
-                        label = { Text(destination.label) },
+                        // Six tabs on a narrow phone: the labels are set a little smaller than the theme's, so
+                        // that "Settings" fits its sixth of the width.
+                        label = { Text(destination.label, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, letterSpacing = 0.sp), maxLines = 1) },
                         modifier = Modifier.testTag("nav_${destination.name}"),
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = RaceColors.Black,
@@ -117,19 +128,32 @@ fun SailRacingApp(viewModel: RaceViewModel, versionName: String = "", initialScr
                 )
             }
             Screen.RACE -> {
-                val mapState by viewModel.mapUiState.collectAsStateWithLifecycle()
                 val windState by viewModel.windUiState.collectAsStateWithLifecycle()
-                RaceScreen(
-                    map = mapState,
+                RaceScreen(wind = windState, modifier = content)
+            }
+            Screen.WIND -> {
+                val windState by viewModel.windUiState.collectAsStateWithLifecycle()
+                WindScreen(
                     wind = windState,
                     actions = remember(viewModel) {
-                        RaceActions(
+                        WindActions(
                             setWindDirection = viewModel::setWindDirection,
                             setTackAngle = viewModel::setTackAngle,
                             setDownwindAngle = viewModel::setDownwindAngle,
                             windFromStarboard = viewModel::setWindFromStarboardTack,
                             windFromPort = viewModel::setWindFromPortTack,
                             resetStatistics = viewModel::resetStatistics,
+                        )
+                    },
+                    modifier = content,
+                )
+            }
+            Screen.MAP -> {
+                val mapState by viewModel.mapUiState.collectAsStateWithLifecycle()
+                MapScreen(
+                    map = mapState,
+                    actions = remember(viewModel) {
+                        MapActions(
                             markHere = viewModel::markWindwardMark,
                             setMarkFromLine = viewModel::setWindwardMarkFromLine,
                             clearMark = viewModel::clearWindwardMark,

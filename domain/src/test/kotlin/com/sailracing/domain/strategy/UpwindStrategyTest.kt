@@ -35,6 +35,7 @@ class UpwindStrategyTest {
         return histogram
     }
 
+    /** The reference wind of the tests stands where the histogram is centred, measured once the histogram has 30 samples. */
     private fun plan(
         heading: Double?,
         histogram: WindHistogram = histogram(0.0, 100),
@@ -42,10 +43,16 @@ class UpwindStrategyTest {
         grid: TrackGrid? = null,
         wind: WindSettings = settings,
     ): UpwindPlan {
-        val reference = WindReference.of(wind, histogram)
+        val measured = histogram.totalSamples >= MIN_SAMPLES
+        val reference = WindReference(if (measured) histogram.meanDirection()!! else wind.directionDegrees.toDouble(), measured)
         val sailing = heading?.let { WindMath.sailingState(it, reference.directionDegrees) }
         val estimated = heading?.let { WindMath.estimatedWindDirection(it, wind, reference.directionDegrees) }
-        return UpwindStrategy.plan(reference, histogram, history, sailing, estimated, grid, 60, 120)
+        val onAngle = sailing != null && (WindMath.isCloseHauled(sailing, 45.0, 20) || WindMath.isOnDownwindAngle(sailing, 120))
+        return UpwindStrategy.plan(reference, histogram, history, sailing, estimated, grid, onAngle)
+    }
+
+    private companion object {
+        const val MIN_SAMPLES = 30
     }
 
     private fun grid(vararg points: TrackPoint): TrackGrid =
@@ -75,14 +82,27 @@ class UpwindStrategyTest {
     }
 
     @Test
+    fun `off the angle there is no shift, whatever the estimate says`() {
+        val reference = WindReference(0.0, isMeasured = true)
+        val sailing = WindMath.sailingState(300.0, 0.0)
+        val reaching = UpwindStrategy.plan(reference, histogram(0.0, 100), WindHistory(), sailing, 345.0, null, onAngle = false)
+        assertNull(reaching.shiftFromReferenceDegrees)
+        assertEquals(TackAdvice.UNKNOWN, reaching.tackAdvice)
+        assertEquals(Tack.STARBOARD, reaching.currentTack)
+        val beating = UpwindStrategy.plan(reference, histogram(0.0, 100), WindHistory(), sailing, 345.0, null, onAngle = true)
+        assertEquals(-15.0, assertNotNull(beating.shiftFromReferenceDegrees), 1e-9)
+        assertEquals(TackAdvice.TACK, beating.tackAdvice)
+    }
+
+    @Test
     fun `the histogram centre is the reference once it has enough samples`() {
-        val few = plan(heading = 315.0, histogram = histogram(10.0, WindReference.MIN_HISTOGRAM_SAMPLES - 1))
+        val few = plan(heading = 315.0, histogram = histogram(10.0, MIN_SAMPLES - 1))
         assertEquals(0.0, few.referenceWindDegrees)
         assertFalse(few.referenceIsMeasured)
         assertEquals(0.0, assertNotNull(few.shiftFromReferenceDegrees), 1e-9)
         assertEquals(TackAdvice.EITHER, few.tackAdvice)
 
-        val enough = plan(heading = 315.0, histogram = histogram(10.0, WindReference.MIN_HISTOGRAM_SAMPLES))
+        val enough = plan(heading = 315.0, histogram = histogram(10.0, MIN_SAMPLES))
         assertEquals(10.0, enough.referenceWindDegrees, 1e-9)
         assertTrue(enough.referenceIsMeasured)
         assertEquals(5.0, assertNotNull(enough.oscillationDegrees), 0.2)

@@ -15,7 +15,7 @@ class PlanTextTest {
 
     @Test
     fun tackTitles() {
-        assertEquals("HOLD", PlanText.tackTitle(base.copy(tackAdvice = TackAdvice.HOLD)))
+        assertEquals("STAY", PlanText.tackTitle(base.copy(tackAdvice = TackAdvice.HOLD)))
         assertEquals("TACK", PlanText.tackTitle(base.copy(tackAdvice = TackAdvice.TACK, pointOfSail = PointOfSail.UPWIND)))
         assertEquals("GYBE", PlanText.tackTitle(base.copy(tackAdvice = TackAdvice.TACK, pointOfSail = PointOfSail.DOWNWIND)))
         assertEquals("EITHER TACK", PlanText.tackTitle(base.copy(tackAdvice = TackAdvice.EITHER, pointOfSail = PointOfSail.UPWIND)))
@@ -72,17 +72,5 @@ class PlanTextTest {
         assertEquals("No heading", PlanText.tackGlance(base))
         assertEquals("Sail close-hauled", PlanText.tackGlance(base.copy(currentTack = Tack.PORT)))
         assertEquals("— lifted 3°", PlanText.tackGlance(hold.copy(currentTack = null, shiftFromReferenceDegrees = 3.0)))
-    }
-
-    @Test
-    fun sideGlances() {
-        assertEquals("Sail both sides · 12 L / 0 R", PlanText.sideGlance(base.copy(sides = SideComparison(leftSamples = 12))))
-        val full = base.copy(
-            sides = SideComparison(40, 50, windDifferenceDegrees = 4.2, speedDifferenceMps = 0.15),
-            trendDegrees = -1.2,
-            favouredSide = FavouredSide.RIGHT,
-        )
-        assertEquals("Wind +4° · speed +0.3 · trend -1°", PlanText.sideGlance(full))
-        assertEquals("Trend +2°", PlanText.sideGlance(base.copy(trendDegrees = 2.0)))
     }
 }

@@ -9,6 +9,7 @@ import android.location.Location
 import android.location.LocationManager
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.sailracing.domain.race.HeadingSource
 import com.sailracing.domain.race.RaceEvent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.firstOrNull
@@ -61,7 +62,7 @@ class AndroidSensorSourceTest {
 
     @Test
     fun withoutPermissionOnlyTheCompassIsUsed() = runTest(UnconfinedTestDispatcher()) {
-        val source = AndroidSensorSource(app)
+        val source = AndroidSensorSource(app, HeadingSource.COMPASS)
         val collected = mutableListOf<RaceEvent>()
         val job = launch { source.events().toList(collected) }
         assertTrue(collected.isEmpty())
@@ -77,7 +78,7 @@ class AndroidSensorSourceTest {
         val rotation = ShadowSensor.newInstance(Sensor.TYPE_ROTATION_VECTOR)
         shadowOf(sensorManager).addSensor(rotation)
 
-        val source = AndroidSensorSource(app, gpsIntervalMillis = 500)
+        val source = AndroidSensorSource(app, HeadingSource.COMPASS, gpsIntervalMillis = 500)
         val collected = mutableListOf<RaceEvent>()
         val job = launch { source.events().toList(collected) }
 
@@ -119,9 +120,32 @@ class AndroidSensorSourceTest {
         assertTrue(shadowOf(locationManager).getRequestLocationUpdateListeners().isEmpty())
     }
 
+    /** Taking the heading from the GPS means the rotation sensor is not listened to at all. */
+    @Test
+    fun theCompassIsLeftAloneWhenTheHeadingComesFromTheGps() = runTest(UnconfinedTestDispatcher()) {
+        shadowOf(app).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+        val locationManager = app.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        shadowOf(locationManager).setProviderEnabled(LocationManager.GPS_PROVIDER, true)
+        val sensorManager = app.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        shadowOf(sensorManager).addSensor(ShadowSensor.newInstance(Sensor.TYPE_ROTATION_VECTOR))
+
+        val collected = mutableListOf<RaceEvent>()
+        val job = launch { AndroidSensorSource(app).events().toList(collected) }
+        val event = ShadowSensorManager.createSensorEvent(4, Sensor.TYPE_ROTATION_VECTOR)
+        event.values[0] = 0.70710678f
+        event.values[3] = 0.70710678f
+        shadowOf(sensorManager).sendSensorEventToListeners(event)
+        shadowOf(locationManager).simulateLocation(Location(LocationManager.GPS_PROVIDER).apply { latitude = 51.14; longitude = 5.83; time = 7 })
+        ShadowLooper.idleMainLooper()
+
+        assertTrue(collected.none { it is RaceEvent.CompassUpdated })
+        assertEquals(1, collected.count { it is RaceEvent.FixReceived })
+        job.cancel()
+    }
+
     @Test
     fun withoutARotationSensorTheCompassFlowCompletes() = runTest(UnconfinedTestDispatcher()) {
-        val source = AndroidSensorSource(app)
+        val source = AndroidSensorSource(app, HeadingSource.COMPASS)
         val result = withTimeoutOrNull(1_000) { source.events().toList() }
         assertEquals(emptyList(), result)
         assertNull(withTimeoutOrNull(100) { source.events().firstOrNull() })

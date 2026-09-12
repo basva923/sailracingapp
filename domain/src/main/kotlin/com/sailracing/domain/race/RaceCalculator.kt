@@ -10,7 +10,7 @@ import com.sailracing.domain.strategy.UpwindStrategy
 import com.sailracing.domain.timer.CountdownTimer
 import com.sailracing.domain.wind.WindHistory
 import com.sailracing.domain.wind.WindMath
-import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Derives the displayable [RaceSnapshot] from a [RaceState] at a given moment. Pure: the same state and
@@ -25,8 +25,9 @@ public object RaceCalculator {
         val fixIsFresh = fixAge != null && fixAge <= state.settings.fixMaxAgeMillis
         val remaining = CountdownTimer.remainingMillis(state.timer, nowMillis)
         val windSettings = state.wind.settings
-        val reference = state.wind.reference
+        val reference = state.wind.reference(nowMillis)
         val referenceDegrees = reference.directionDegrees
+        val tackAngle = reference.tackAngleDegrees
         val heading = state.navigation.headingDegrees
 
         val line = fix?.let { StartLineCalculator.solve(state.startLine, it.point, referenceDegrees) }
@@ -39,20 +40,33 @@ public object RaceCalculator {
         }
 
         val sailing = heading?.let { WindMath.sailingState(it, referenceDegrees) }
-        val estimatedWind = heading?.let { WindMath.estimatedWindDirection(it, windSettings, referenceDegrees) }
-        val target = sailing?.let { WindMath.targetHeading(windSettings, it, referenceDegrees) }
+        val estimatedWind = heading?.let { WindMath.estimatedWindDirection(it, windSettings, referenceDegrees, tackAngle) }
+        val target = sailing?.let { WindMath.targetHeading(windSettings, it, referenceDegrees, tackAngle) }
         val speed = fix?.speedMps
+
+        // A heading only says something about the wind while the boat holds an angle to it: close-hauled,
+        // or on its downwind angle. Reaching, it says nothing.
+        val beating = sailing != null && WindMath.isCloseHauled(sailing, tackAngle, state.settings.closeHauledBandDegrees)
+        val running = sailing != null && WindMath.isOnDownwindAngle(sailing, state.settings.downwindMinTwaDegrees)
+        val onAngle = beating || running
+        // The wind of the moment is the last few samples on this tack, not the last fix alone - one fix is
+        // a wave and a wobble of the helm. The boat that has just settled on a tack has one sample, and
+        // until it has that one its heading now stands in.
+        val steadyWind = if (onAngle) {
+            state.wind.history.steadyDirectionDegrees(sailing!!.tack, running, STEADY_SAMPLES, nowMillis - STEADY_WINDOW_MILLIS) ?: estimatedWind
+        } else {
+            null
+        }
 
         // The race line is planned from the tack the boat is on and the wind it is measuring right now, so
         // both only count while it is actually beating: a reaching boat's heading says nothing about the wind.
-        val beating = sailing != null && abs(sailing.trueWindAngleDegrees) <= state.settings.upwindMaxTwaDegrees
         val course = courseOrigin(state.startLine, state.track.points.firstOrNull()?.point ?: fix?.point)?.let { origin ->
             val inputs = CourseInputs(
                 frame = CourseFrame(origin, referenceDegrees),
                 line = state.startLine,
                 windwardMark = state.windwardMark,
                 boat = fix?.point,
-                tackAngleDegrees = windSettings.tackAngleDegrees,
+                tackAngleDegrees = tackAngle.roundToInt(),
                 currentTack = if (beating) sailing!!.tack else null,
                 currentWindDegrees = if (beating) currentWindDegrees(state.wind.history) else null,
                 settings = state.settings.course,
@@ -64,10 +78,9 @@ public object RaceCalculator {
             histogram = state.wind.histogram,
             history = state.wind.history,
             sailing = sailing,
-            estimatedWindDegrees = estimatedWind,
+            estimatedWindDegrees = steadyWind,
             grid = course?.grid,
-            upwindMaxTwaDegrees = state.settings.upwindMaxTwaDegrees,
-            downwindMinTwaDegrees = state.settings.downwindMinTwaDegrees,
+            onAngle = onAngle,
         )
 
         return RaceSnapshot(
@@ -94,7 +107,9 @@ public object RaceCalculator {
             sailing = sailing,
             estimatedWindDegrees = estimatedWind,
             shiftDegrees = estimatedWind?.let { WindMath.shiftDegrees(referenceDegrees, it) },
-            targetHeadings = WindMath.targetHeadings(windSettings, referenceDegrees),
+            steadyWindDegrees = steadyWind,
+            steadyShiftDegrees = steadyWind?.let { WindMath.shiftDegrees(referenceDegrees, it) },
+            targetHeadings = WindMath.targetHeadings(windSettings, referenceDegrees, tackAngle),
             targetHeadingDegrees = target,
             headingErrorDegrees = if (heading != null && target != null) WindMath.headingErrorDegrees(heading, target) else null,
             vmgMps = if (speed != null && sailing != null) WindMath.velocityMadeGood(speed, sailing) else null,
@@ -136,4 +151,8 @@ public object RaceCalculator {
 
     /** How many close-hauled samples the wind of the moment is averaged over: about half a minute of them. */
     public const val CURRENT_WIND_SAMPLES: Int = 30
+
+    /** The shift shown and the advice given are read off this many samples on the current tack, at most this old. */
+    public const val STEADY_SAMPLES: Int = 10
+    public const val STEADY_WINDOW_MILLIS: Long = 30_000L
 }

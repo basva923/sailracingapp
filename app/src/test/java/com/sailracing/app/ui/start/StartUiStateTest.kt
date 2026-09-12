@@ -51,6 +51,7 @@ class StartUiStateTest {
         assertEquals("+30 s", early.timeToKill)
         assertEquals(Urgency.EARLY, early.urgency)
         assertEquals("40 m", early.distanceToLine)
+        assertFalse(early.overLine)
         assertTrue(early.pinSet && early.boatSet)
         assertEquals("Line 100 m", early.lineLength)
         assertTrue(early.canMark)
@@ -73,14 +74,26 @@ class StartUiStateTest {
         engine.dispatch(RaceEvent.FixReceived(PositionFix(above, 1_000, 2.5, 320.0, null)))
         val state = StartUiState.from(engine.snapshot(1_000))
         assertTrue(state.overEarly)
+        assertTrue(state.overLine)
+        assertEquals("-10 m", state.distanceToLine)
         assertEquals("GPS", state.gpsStatus)
 
-        // Not a concern once racing.
+        // Not a concern once racing: the course side is where the boat belongs.
         val racing = StartUiState.from(engine.snapshot(61_000))
         assertEquals(RacePhase.RACING, racing.phase)
         assertEquals("Race time", racing.clockLabel)
         assertEquals("+00:01", racing.clock)
         assertEquals("---", racing.timeToKill)
         assertFalse(racing.overEarly)
+        assertFalse(racing.overLine)
+        assertEquals("10 m", racing.distanceToLine)
+
+        // Before the countdown it is still the wrong side of the line, only without the warning.
+        val setup = StartUiState.from(RaceEngine(RaceState(startLine = StartLine(pin, boat))).also {
+            it.dispatch(RaceEvent.FixReceived(PositionFix(above, 1_000, 2.5, 320.0, null)))
+        }.snapshot(1_000))
+        assertTrue(setup.overLine)
+        assertFalse(setup.overEarly)
+        assertEquals("-10 m", setup.distanceToLine)
     }
 }

@@ -11,10 +11,9 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.sailracing.domain.course.GridSettings
 import com.sailracing.domain.course.GridSpec
-import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.race.ApproachSpeed
+import com.sailracing.domain.race.HeadingSource
 import com.sailracing.domain.race.RaceSettings
-import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.timer.CuePolicy
 import com.sailracing.domain.timer.TimerState
 import com.sailracing.domain.wind.WindSettings
@@ -37,17 +36,6 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
         dataStore.edit { prefs -> prefs.write(transform(prefs.toSettings())) }
     }
 
-    override suspend fun saveStartLine(line: StartLine) {
-        dataStore.edit { prefs ->
-            prefs.writePoint(Keys.PIN_LAT, Keys.PIN_LON, line.pinEnd)
-            prefs.writePoint(Keys.BOAT_LAT, Keys.BOAT_LON, line.boatEnd)
-        }
-    }
-
-    override suspend fun saveWindwardMark(mark: GeoPoint?) {
-        dataStore.edit { prefs -> prefs.writePoint(Keys.MARK_LAT, Keys.MARK_LON, mark) }
-    }
-
     override suspend fun saveWind(wind: WindSettings) {
         dataStore.edit { prefs ->
             prefs[Keys.WIND_DIRECTION] = wind.directionDegrees
@@ -62,16 +50,6 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
                 TimerState.Idle -> prefs.remove(Keys.TIMER_START_AT)
                 is TimerState.Running -> prefs[Keys.TIMER_START_AT] = timer.startAtMillis
             }
-        }
-    }
-
-    private fun MutablePreferences.writePoint(latKey: Preferences.Key<Double>, lonKey: Preferences.Key<Double>, point: GeoPoint?) {
-        if (point == null) {
-            remove(latKey)
-            remove(lonKey)
-        } else {
-            this[latKey] = point.latitude
-            this[lonKey] = point.longitude
         }
     }
 
@@ -90,11 +68,12 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
         this[Keys.MIN_SAILING_SPEED] = race.minSailingSpeedMps
         this[Keys.COURSE_MIN_SPEED] = race.courseMinSpeedMps
         this[Keys.FIX_MAX_AGE] = race.fixMaxAgeMillis
+        this[Keys.HEADING_SOURCE] = race.headingSource.name
         this[Keys.COMPASS_OFFSET] = race.compassOffsetDegrees
         this[Keys.CUES_ENABLED] = race.cuePolicy.enabled
         this[Keys.CUE_TEN_SECOND_WINDOW] = race.cuePolicy.tenSecondWindowSeconds
         this[Keys.CUE_SECOND_WINDOW] = race.cuePolicy.secondWindowSeconds
-        this[Keys.UPWIND_MAX_TWA] = race.upwindMaxTwaDegrees
+        this[Keys.CLOSE_HAULED_BAND] = race.closeHauledBandDegrees
         this[Keys.DOWNWIND_MIN_TWA] = race.downwindMinTwaDegrees
         this[Keys.MAX_SAMPLING_TURN_RATE] = race.maxSamplingTurnRateDegreesPerSecond
         this[Keys.HISTORY_CAPACITY] = race.windHistoryCapacity
@@ -119,13 +98,15 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
             minSailingSpeedMps = this[Keys.MIN_SAILING_SPEED] ?: defaults.minSailingSpeedMps,
             courseMinSpeedMps = this[Keys.COURSE_MIN_SPEED] ?: defaults.courseMinSpeedMps,
             fixMaxAgeMillis = this[Keys.FIX_MAX_AGE] ?: defaults.fixMaxAgeMillis,
+            // A source that is not on offer any more (or was never stored) falls back to the default.
+            headingSource = HeadingSource.entries.firstOrNull { it.name == this[Keys.HEADING_SOURCE] } ?: defaults.headingSource,
             compassOffsetDegrees = this[Keys.COMPASS_OFFSET] ?: defaults.compassOffsetDegrees,
             cuePolicy = CuePolicy(
                 enabled = this[Keys.CUES_ENABLED] ?: defaultCues.enabled,
                 tenSecondWindowSeconds = this[Keys.CUE_TEN_SECOND_WINDOW] ?: defaultCues.tenSecondWindowSeconds,
                 secondWindowSeconds = this[Keys.CUE_SECOND_WINDOW] ?: defaultCues.secondWindowSeconds,
             ),
-            upwindMaxTwaDegrees = this[Keys.UPWIND_MAX_TWA] ?: defaults.upwindMaxTwaDegrees,
+            closeHauledBandDegrees = this[Keys.CLOSE_HAULED_BAND]?.coerceIn(RaceSettings.CLOSE_HAULED_BAND_RANGE) ?: defaults.closeHauledBandDegrees,
             downwindMinTwaDegrees = this[Keys.DOWNWIND_MIN_TWA] ?: defaults.downwindMinTwaDegrees,
             maxSamplingTurnRateDegreesPerSecond = this[Keys.MAX_SAMPLING_TURN_RATE] ?: defaults.maxSamplingTurnRateDegreesPerSecond,
             windHistoryCapacity = this[Keys.HISTORY_CAPACITY] ?: defaults.windHistoryCapacity,
@@ -160,26 +141,12 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
             )
         }.getOrDefault(defaults)
         return PersistedRace(
-            startLine = StartLine(readPoint(Keys.PIN_LAT, Keys.PIN_LON), readPoint(Keys.BOAT_LAT, Keys.BOAT_LON)),
-            windwardMark = readPoint(Keys.MARK_LAT, Keys.MARK_LON),
             wind = wind,
             timer = this[Keys.TIMER_START_AT]?.let { TimerState.Running(it) } ?: TimerState.Idle,
         )
     }
 
-    private fun Preferences.readPoint(latKey: Preferences.Key<Double>, lonKey: Preferences.Key<Double>): GeoPoint? {
-        val lat = this[latKey] ?: return null
-        val lon = this[lonKey] ?: return null
-        return runCatching { GeoPoint(lat, lon) }.getOrNull()
-    }
-
     private object Keys {
-        val PIN_LAT = doublePreferencesKey("line.pin.lat")
-        val PIN_LON = doublePreferencesKey("line.pin.lon")
-        val BOAT_LAT = doublePreferencesKey("line.boat.lat")
-        val BOAT_LON = doublePreferencesKey("line.boat.lon")
-        val MARK_LAT = doublePreferencesKey("mark.windward.lat")
-        val MARK_LON = doublePreferencesKey("mark.windward.lon")
         val WIND_DIRECTION = intPreferencesKey("wind.direction")
         val TACK_ANGLE = intPreferencesKey("wind.tackAngle")
         val DOWNWIND_ANGLE = intPreferencesKey("wind.downwindAngle")
@@ -190,11 +157,13 @@ class DataStoreRaceRepository(private val dataStore: DataStore<Preferences>) : R
         val MIN_SAILING_SPEED = doublePreferencesKey("settings.minSailingSpeed")
         val COURSE_MIN_SPEED = doublePreferencesKey("settings.courseMinSpeed")
         val FIX_MAX_AGE = longPreferencesKey("settings.fixMaxAge")
+        val HEADING_SOURCE = stringPreferencesKey("settings.headingSource")
         val COMPASS_OFFSET = intPreferencesKey("settings.compassOffset")
         val CUES_ENABLED = booleanPreferencesKey("settings.cues.enabled")
         val CUE_TEN_SECOND_WINDOW = intPreferencesKey("settings.cues.tenSecondWindow")
         val CUE_SECOND_WINDOW = intPreferencesKey("settings.cues.secondWindow")
-        val UPWIND_MAX_TWA = intPreferencesKey("settings.upwindMaxTwa")
+        // The old "count as upwind up to" key (settings.upwindMaxTwa) is left unread: the band replaced it.
+        val CLOSE_HAULED_BAND = intPreferencesKey("settings.closeHauledBand")
         val DOWNWIND_MIN_TWA = intPreferencesKey("settings.downwindMinTwa")
         val MAX_SAMPLING_TURN_RATE = doublePreferencesKey("settings.maxSamplingTurnRate")
         val HISTORY_CAPACITY = intPreferencesKey("settings.historyCapacity")

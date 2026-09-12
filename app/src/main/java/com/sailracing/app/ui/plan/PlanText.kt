@@ -13,7 +13,7 @@ import kotlin.math.roundToInt
 object PlanText {
 
     fun tackTitle(plan: UpwindPlan): String = when (plan.tackAdvice) {
-        TackAdvice.HOLD -> "HOLD"
+        TackAdvice.HOLD -> "STAY"
         TackAdvice.TACK -> if (plan.pointOfSail == PointOfSail.DOWNWIND) "GYBE" else "TACK"
         TackAdvice.EITHER -> if (plan.pointOfSail == PointOfSail.DOWNWIND) "EITHER GYBE" else "EITHER TACK"
         TackAdvice.UNKNOWN -> "—"
@@ -72,19 +72,6 @@ object PlanText {
             else -> "go towards the shift"
         }
         return parts.joinToString(", ").replaceFirstChar { it.uppercase() } + " · " + verdict
-    }
-
-    /**
-     * The evidence for the side in a few words: "Wind +4° · speed +0.3 · trend -1°", or how far the boat
-     * is from having sailed both sides.
-     */
-    fun sideGlance(plan: UpwindPlan): String {
-        val parts = mutableListOf<String>()
-        plan.sides.windDifferenceDegrees?.let { parts += "wind ${Formatters.signedDegrees(it)}" }
-        plan.sides.speedDifferenceMps?.let { parts += "speed ${Formatters.signedKnotsValue(it)}" }
-        plan.trendDegrees?.let { parts += "trend ${Formatters.signedDegrees(it)}" }
-        if (parts.isEmpty()) return "Sail both sides · ${plan.sides.leftSamples} L / ${plan.sides.rightSamples} R"
-        return parts.joinToString(" · ").replaceFirstChar { it.uppercase() }
     }
 
     private fun tackShort(tack: Tack?): String = when (tack) {

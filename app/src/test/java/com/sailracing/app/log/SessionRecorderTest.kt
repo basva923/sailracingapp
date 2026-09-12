@@ -78,7 +78,7 @@ class SessionRecorderTest {
         assertTrue(line(RaceEvent.SetTackAngle(43)).contains(""""degrees":43"""))
         assertTrue(line(RaceEvent.SetDownwindAngle(150)).contains(""""degrees":150"""))
         assertTrue(line(RaceEvent.SetWindSettings(WindSettings(200, 44, 145))).contains(""""directionDegrees":200"""))
-        assertTrue(line(RaceEvent.UpdateSettings(RaceSettings(upwindMaxTwaDegrees = 55))).contains(""""upwindMaxTwaDegrees":55"""))
+        assertTrue(line(RaceEvent.UpdateSettings(RaceSettings(closeHauledBandDegrees = 25))).contains(""""closeHauledBandDegrees":25"""))
 
         // What was cleared or unset says so by leaving the value out, and is still a line of its own.
         assertTrue(line(RaceEvent.SetWindwardMark(null)).endsWith(""""event":"SetWindwardMark"}"""))
@@ -86,6 +86,43 @@ class SessionRecorderTest {
         assertTrue(line(RaceEvent.MarkPinEnd).endsWith(""""event":"MarkPinEnd"}"""))
         assertTrue(line(RaceEvent.ClearSession).endsWith(""""event":"ClearSession"}"""))
         assertTrue(line(RaceEvent.SetWindFromPortTack).endsWith(""""event":"SetWindFromPortTack"}"""))
+    }
+
+    /**
+     * The names are spelled out, not read off the classes: a release build shortens those to a letter,
+     * which is what made a day's log unreadable once.
+     */
+    @Test
+    fun everyEventHasItsNameSpelledOut() {
+        val named = mapOf(
+            RaceEvent.FixReceived(PositionFix(here, 0L, 1.0, 0.0, 1.0)) to "FixReceived",
+            RaceEvent.CompassUpdated(1.0) to "CompassUpdated",
+            RaceEvent.Tick(0L) to "Tick",
+            RaceEvent.MarkPinEnd to "MarkPinEnd",
+            RaceEvent.MarkBoatEnd to "MarkBoatEnd",
+            RaceEvent.ClearPinEnd to "ClearPinEnd",
+            RaceEvent.ClearBoatEnd to "ClearBoatEnd",
+            RaceEvent.SetStartLine(StartLine()) to "SetStartLine",
+            RaceEvent.MarkWindwardMark to "MarkWindwardMark",
+            RaceEvent.SetWindwardMarkFromLine(0, 1.0) to "SetWindwardMarkFromLine",
+            RaceEvent.SetWindwardMark(null) to "SetWindwardMark",
+            RaceEvent.StartCountdown(5, 0L) to "StartCountdown",
+            RaceEvent.SyncCountdown(0L) to "SyncCountdown",
+            RaceEvent.StopTimer to "StopTimer",
+            RaceEvent.SetTimer(TimerState.Idle) to "SetTimer",
+            RaceEvent.SetWindDirection(0) to "SetWindDirection",
+            RaceEvent.SetTackAngle(45) to "SetTackAngle",
+            RaceEvent.SetDownwindAngle(140) to "SetDownwindAngle",
+            RaceEvent.SetWindFromPortTack to "SetWindFromPortTack",
+            RaceEvent.SetWindFromStarboardTack to "SetWindFromStarboardTack",
+            RaceEvent.SetWindSettings(WindSettings()) to "SetWindSettings",
+            RaceEvent.ResetWindStatistics to "ResetWindStatistics",
+            RaceEvent.ResetSpeedStatistics to "ResetSpeedStatistics",
+            RaceEvent.ClearTrack to "ClearTrack",
+            RaceEvent.ClearSession to "ClearSession",
+            RaceEvent.UpdateSettings(RaceSettings()) to "UpdateSettings",
+        )
+        for ((event, name) in named) assertEquals(name, with(SessionRecorder) { event.logName() })
     }
 
     @Test
@@ -115,6 +152,9 @@ class SessionRecorderTest {
         assertTrue(line.contains(""""speedMps":3.0"""), line)
         assertTrue(line.contains(""""referenceWindDegrees":0.0"""), line)
         assertTrue(line.contains(""""referenceMeasured":false"""), line)
+        assertTrue(line.contains(""""shiftDegrees":5.0"""), line)
+        assertTrue(line.contains(""""steadyShiftDegrees":"""), line)
+        assertTrue(!line.contains("measuredTackAngleDegrees"), line)
         assertTrue(line.contains(""""trackPoints":1"""), line)
         assertTrue(line.contains(""""cells":"""), line)
         assertTrue(line.contains(""""measuredBlocks":0"""), line)

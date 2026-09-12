@@ -41,7 +41,7 @@ class SessionRecorder(private val stateIntervalMillis: Long = DEFAULT_STATE_INTE
                 is ApproachSpeed.AverageUpwindVmg -> approach.fallbackMps
             },
             "approachSpeedManual" to (approach is ApproachSpeed.Manual),
-            "upwindMaxTwaDegrees" to race.upwindMaxTwaDegrees,
+            "closeHauledBandDegrees" to race.closeHauledBandDegrees,
             "downwindMinTwaDegrees" to race.downwindMinTwaDegrees,
             "compassOffsetDegrees" to race.compassOffsetDegrees,
             "minSailingSpeedMps" to race.minSailingSpeedMps,
@@ -75,7 +75,7 @@ class SessionRecorder(private val stateIntervalMillis: Long = DEFAULT_STATE_INTE
 
     /** Everything the app was told, with the values it was told in. */
     private fun event(event: RaceEvent, nowMillis: Long): LogRecord {
-        val name = event::class.simpleName ?: "event"
+        val name = event.logName()
         fun of(vararg values: Pair<String, Any?>) = LogRecord.of(nowMillis, "event", "event" to name, *values)
         return when (event) {
             is RaceEvent.FixReceived -> of(
@@ -108,7 +108,7 @@ class SessionRecorder(private val stateIntervalMillis: Long = DEFAULT_STATE_INTE
                 "downwindAngleDegrees" to event.settings.downwindAngleDegrees,
             )
             is RaceEvent.UpdateSettings -> of(
-                "upwindMaxTwaDegrees" to event.settings.upwindMaxTwaDegrees,
+                "closeHauledBandDegrees" to event.settings.closeHauledBandDegrees,
                 "cellSizeMeters" to event.settings.course.grid.cellSizeMeters,
                 "cues" to event.settings.cuePolicy.enabled,
             )
@@ -136,10 +136,13 @@ class SessionRecorder(private val stateIntervalMillis: Long = DEFAULT_STATE_INTE
             "headingSource" to snapshot.headingSource,
             "setWindDegrees" to snapshot.windSettings.directionDegrees,
             "tackAngleDegrees" to snapshot.windSettings.tackAngleDegrees,
+            "measuredTackAngleDegrees" to snapshot.windReference.measuredTackAngleDegrees,
             "referenceWindDegrees" to snapshot.windReference.directionDegrees,
             "referenceMeasured" to snapshot.windReference.isMeasured,
             "estimatedWindDegrees" to snapshot.estimatedWindDegrees,
             "shiftDegrees" to snapshot.shiftDegrees,
+            "steadyWindDegrees" to snapshot.steadyWindDegrees,
+            "steadyShiftDegrees" to snapshot.steadyShiftDegrees,
             "tack" to snapshot.sailing?.tack,
             "pointOfSail" to snapshot.sailing?.pointOfSail,
             "trueWindAngleDegrees" to snapshot.sailing?.trueWindAngleDegrees,
@@ -175,5 +178,38 @@ class SessionRecorder(private val stateIntervalMillis: Long = DEFAULT_STATE_INTE
     companion object {
         /** How often the app's own state is written down: often enough to follow, rarely enough to read. */
         const val DEFAULT_STATE_INTERVAL_MILLIS: Long = 1_000L
+
+        /**
+         * The name an event is logged under: spelled out rather than read off the class, which a release
+         * build shortens to a letter and would make the log unreadable and unreplayable.
+         */
+        fun RaceEvent.logName(): String = when (this) {
+            is RaceEvent.FixReceived -> "FixReceived"
+            is RaceEvent.CompassUpdated -> "CompassUpdated"
+            is RaceEvent.Tick -> "Tick"
+            RaceEvent.MarkPinEnd -> "MarkPinEnd"
+            RaceEvent.MarkBoatEnd -> "MarkBoatEnd"
+            RaceEvent.ClearPinEnd -> "ClearPinEnd"
+            RaceEvent.ClearBoatEnd -> "ClearBoatEnd"
+            is RaceEvent.SetStartLine -> "SetStartLine"
+            RaceEvent.MarkWindwardMark -> "MarkWindwardMark"
+            is RaceEvent.SetWindwardMarkFromLine -> "SetWindwardMarkFromLine"
+            is RaceEvent.SetWindwardMark -> "SetWindwardMark"
+            is RaceEvent.StartCountdown -> "StartCountdown"
+            is RaceEvent.SyncCountdown -> "SyncCountdown"
+            RaceEvent.StopTimer -> "StopTimer"
+            is RaceEvent.SetTimer -> "SetTimer"
+            is RaceEvent.SetWindDirection -> "SetWindDirection"
+            is RaceEvent.SetTackAngle -> "SetTackAngle"
+            is RaceEvent.SetDownwindAngle -> "SetDownwindAngle"
+            RaceEvent.SetWindFromPortTack -> "SetWindFromPortTack"
+            RaceEvent.SetWindFromStarboardTack -> "SetWindFromStarboardTack"
+            is RaceEvent.SetWindSettings -> "SetWindSettings"
+            RaceEvent.ResetWindStatistics -> "ResetWindStatistics"
+            RaceEvent.ResetSpeedStatistics -> "ResetSpeedStatistics"
+            RaceEvent.ClearTrack -> "ClearTrack"
+            RaceEvent.ClearSession -> "ClearSession"
+            is RaceEvent.UpdateSettings -> "UpdateSettings"
+        }
     }
 }

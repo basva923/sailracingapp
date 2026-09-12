@@ -3,7 +3,6 @@ package com.sailracing.app.race
 import com.sailracing.app.audio.CuePlayer
 import com.sailracing.app.data.AppSettings
 import com.sailracing.app.data.RaceRepository
-import com.sailracing.app.data.SimulationSettings
 import com.sailracing.app.log.SessionLog
 import com.sailracing.app.sensors.SensorSource
 import com.sailracing.app.time.Clock
@@ -15,6 +14,7 @@ import com.sailracing.domain.race.RaceEngine
 import com.sailracing.domain.race.RaceEvent
 import com.sailracing.domain.race.RaceSnapshot
 import com.sailracing.domain.race.RaceState
+import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.timer.TimerState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -38,8 +38,10 @@ import kotlinx.coroutines.withContext
  * The single live race: owns the [RaceEngine], feeds it sensor events and clock ticks, plays cue effects,
  * restores and persists race data, and exposes the state to the UI and the foreground service.
  *
- * A session is started and ended by the sailor (from the Session screen); its data (line, mark, track,
- * statistics) outlives an end and is only forgotten by [RaceEvent.ClearSession].
+ * A session is started and ended by the sailor (from the Session screen); its data (track, statistics)
+ * outlives an end and is only forgotten by [RaceEvent.ClearSession]. The course itself does not: every
+ * session begins with an empty start line and no windward mark, because both are laid afresh for the race
+ * that is about to be sailed and one kept from the last outing would be timed against from miles away.
  * All engine access is serialised on one dispatcher so events never interleave.
  *
  * Everything that goes through it is written to the [SessionLog] as it happens: every event in, every
@@ -48,7 +50,7 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalCoroutinesApi::class)
 class RaceSession(
     private val repository: RaceRepository,
-    private val sensorSourceFactory: (SimulationSettings, Clock) -> SensorSource,
+    private val sensorSourceFactory: (AppSettings, Clock) -> SensorSource,
     private val cuePlayer: CuePlayer,
     private val scope: CoroutineScope,
     private val log: SessionLog = SessionLog.None,
@@ -87,7 +89,10 @@ class RaceSession(
     /** The time the app believes it is: scaled while a simulation runs. */
     fun nowMillis(): Long = clock.nowMillis()
 
-    /** Restores persisted data and starts sensors, ticker and persistence. Safe to call repeatedly. */
+    /**
+     * Begins a session: an empty course, the wind and a recent countdown restored, and sensors, ticker and
+     * persistence running. Safe to call repeatedly - a session that is already running is left alone.
+     */
     suspend fun start() {
         if (_isRunning.value) return
         _isRunning.value = true
@@ -100,8 +105,8 @@ class RaceSession(
         log.start(baseClock.nowMillis(), versionName, initialSettings)
         withContext(engineContext) {
             applyLocked(RaceEvent.UpdateSettings(initialSettings.race))
-            applyLocked(RaceEvent.SetStartLine(persisted.startLine))
-            applyLocked(RaceEvent.SetWindwardMark(persisted.windwardMark))
+            applyLocked(RaceEvent.SetStartLine(StartLine()))
+            applyLocked(RaceEvent.SetWindwardMark(null))
             applyLocked(RaceEvent.SetWindSettings(persisted.wind))
             applyLocked(RaceEvent.SetTimer(restorableTimer(persisted.timer)))
         }
@@ -109,7 +114,7 @@ class RaceSession(
         jobs += scope.launch { observeSettings() }
         jobs += scope.launch { persistChanges() }
         jobs += scope.launch { tick() }
-        startSensors(initialSettings.simulation)
+        startSensors(initialSettings)
     }
 
     fun stop() {
@@ -168,23 +173,26 @@ class RaceSession(
             // Another simulation is another day on another course: what was measured of the old one would
             // only pollute the new one's track, wind and statistics.
             if (settings.simulation.scenarioId != previous.simulation.scenarioId) dispatch(RaceEvent.ClearSession)
-            if (settings.simulation != previous.simulation) startSensors(settings.simulation)
+            // Which sensors are listened to, and how fast, depends on both: the compass is only read when
+            // the heading is taken from it.
+            if (settings.simulation != previous.simulation || settings.race.headingSource != previous.race.headingSource) {
+                startSensors(settings)
+            }
         }
     }
 
-    private fun startSensors(simulation: SimulationSettings) {
+    private fun startSensors(settings: AppSettings) {
+        val simulation = settings.simulation
         sensorJob?.cancel()
         clock = if (simulation.enabled) ScaledClock(baseClock, simulation.speedFactor) else baseClock
         sensorJob = scope.launch {
-            sensorSourceFactory(simulation, clock).events().collect { event ->
+            sensorSourceFactory(settings, clock).events().collect { event ->
                 withContext(engineContext) { applyLocked(event) }
             }
         }
     }
 
     private suspend fun persistChanges() = coroutineScope {
-        launch { state.map { it.startLine }.distinctUntilChanged().drop(1).collect { repository.saveStartLine(it) } }
-        launch { state.map { it.windwardMark }.distinctUntilChanged().drop(1).collect { repository.saveWindwardMark(it) } }
         launch { state.map { it.wind.settings }.distinctUntilChanged().drop(1).collect { repository.saveWind(it) } }
         launch { state.map { it.timer }.distinctUntilChanged().drop(1).collect { repository.saveTimer(it) } }
     }

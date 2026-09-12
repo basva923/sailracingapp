@@ -38,11 +38,13 @@ is speeding it up), and `type`:
 | --- | --- | --- |
 | `session` | first line of the file | the app version, the phone, and every setting the session started with |
 | `event` | every event that reached the engine, except the clock tick | `event` names it (`FixReceived`, `MarkPinEnd`, `SetWindDirection`, …) and the rest are its values |
-| `state` | about once a second | what the app was showing: the boat, the wind it believes in, the advice, the race line |
+| `state` | about once a second | what the app was showing: the boat, the wind it believes in (`referenceWindDegrees`, and `measuredTackAngleDegrees` once both tacks have been sailed), the shift off the last fix (`shiftDegrees`) and the steadied one the advice is judged from (`steadyShiftDegrees`), the advice, the race line |
 | `cue` | every beep | which cue was played |
 | `end` | last line | the session was ended by the sailor |
 
 A value the app does not have is left out rather than written as null, so a line says only what was true.
+Event names are spelled out by the recorder, not read off the classes: a release build shortens those to
+a letter. Nothing is written between the end of one session and the start of the next.
 
 ```json
 {"t":1788876930000,"type":"session","app":"1.0.0","android":31,"device":"samsung SM-G970F","simulation":false,...}

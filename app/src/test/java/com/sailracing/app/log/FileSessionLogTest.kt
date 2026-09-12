@@ -92,6 +92,33 @@ class FileSessionLogTest {
         assertEquals(0, File(folder.root, "sessions").listFiles()?.size)
     }
 
+    /**
+     * What happens between sessions - the sailor clearing the session, resetting the statistics - belongs
+     * to no session, and a file opened for it would carry the head of the session that had just ended.
+     */
+    @Test
+    fun nothingIsWrittenBetweenSessions() = runTest {
+        val log = TestScopeLog(this)
+        log.start(1_000L, "1.0.0", AppSettings())
+        log.end(2_000L)
+        advanceUntilIdle()
+        log.awaitWritten()
+        log.record(RaceEvent.ClearSession, engine.snapshot(3_000L))
+        log.cue(Cue.START, 3_500L)
+        advanceUntilIdle()
+        assertEquals(1, File(folder.root, "sessions").listFiles()?.size)
+        assertEquals(listOf("session", "end"), lines().map { it.type() })
+
+        log.start(60_000L, "1.0.0", AppSettings())
+        log.record(RaceEvent.SetWindDirection(210), engine.snapshot(60_000L))
+        log.end(61_000L)
+        advanceUntilIdle()
+        log.awaitWritten()
+        val files = File(folder.root, "sessions").listFiles()!!.sortedBy { it.name }
+        assertEquals(2, files.size)
+        assertEquals(listOf("session", "event", "state", "end"), files[1].readLines().map { it.type() })
+    }
+
     @Test
     fun aFolderItCannotWriteToIsNotWorthFailingARaceOver() = runTest {
         val log = FileSessionLog(

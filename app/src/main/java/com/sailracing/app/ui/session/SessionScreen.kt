@@ -33,8 +33,9 @@ private enum class SessionDialog { END, CLEAR }
 
 /**
  * The central place to start, end and clear a session, with an overview of what the session holds.
- * Starting switches on the GPS, the ticker and the beeps; ending switches them off but keeps the data;
- * clearing forgets the line, the mark, the track and every statistic for the next race.
+ * Starting switches on the GPS, the ticker and the beeps, and empties the start line and the windward mark
+ * for the race about to be sailed; ending switches them off but keeps the data; clearing forgets the line,
+ * the mark, the track and every statistic.
  */
 @Composable
 fun SessionScreen(state: SessionUiState, actions: SessionActions, modifier: Modifier = Modifier) {
@@ -95,7 +96,7 @@ fun SessionScreen(state: SessionUiState, actions: SessionActions, modifier: Modi
                 enabled = state.hasData,
                 testTag = "clearSession",
             )
-            Caption("Start: GPS on, wind measured, countdown beeps. End: GPS off, data kept.", maxLines = 3)
+            Caption("Start: GPS on, wind measured, countdown beeps, and a fresh line and mark. End: GPS off, data kept.", maxLines = 3)
             Caption("Clear: forget the line, the mark, the track and the statistics for the next race.", maxLines = 3)
         },
     )
@@ -103,7 +104,8 @@ fun SessionScreen(state: SessionUiState, actions: SessionActions, modifier: Modi
     when (dialog) {
         SessionDialog.END -> ConfirmDialog(
             title = "End the session?",
-            text = "GPS tracking and the countdown stop. What was measured is kept until you clear it.",
+            text = "GPS tracking and the countdown stop. The track and the statistics are kept until you clear " +
+                "them; starting again is the next race, on a fresh line and mark.",
             confirmText = "End",
             onConfirm = { actions.end(); dialog = null },
             onDismiss = { dialog = null },

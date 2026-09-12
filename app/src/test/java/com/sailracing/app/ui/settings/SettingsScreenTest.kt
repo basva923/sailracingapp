@@ -16,6 +16,7 @@ import org.robolectric.annotation.Config
 import com.sailracing.app.data.AppSettings
 import com.sailracing.app.ui.theme.SailRacingTheme
 import com.sailracing.domain.race.ApproachSpeed
+import com.sailracing.domain.race.HeadingSource
 import com.sailracing.domain.timer.CuePolicy
 import com.sailracing.simulation.SimulationCatalog
 import org.junit.Rule
@@ -141,11 +142,11 @@ class SettingsScreenTest {
         compose.onNodeWithTag("confirm").performClick()
         assertEquals(5, settings.race.cuePolicy.secondWindowSeconds)
 
-        compose.onNodeWithTag("upwindMaxTwa").performScrollTo().performClick()
+        compose.onNodeWithTag("closeHauledBand").performScrollTo().performClick()
         compose.onNodeWithTag("stepUpBig").performClick()
         compose.onNodeWithTag("stepUpBig").performClick()
         compose.onNodeWithTag("confirm").performClick()
-        assertEquals(70, settings.race.upwindMaxTwaDegrees)
+        assertEquals(30, settings.race.closeHauledBandDegrees)
 
         compose.onNodeWithTag("simulationSpeed").performScrollTo().performClick()
         compose.onNodeWithTag("stepUpBig").performClick()
@@ -191,10 +192,32 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun theHeadingCanBeTakenFromTheCompassOrTheGps() {
+        show()
+        // The row says which one is in use and what it costs; the dialog offers both.
+        compose.onNodeWithTag("headingSource").performScrollTo().assertTextContains("GPS course")
+        compose.onNodeWithTag("headingSource").performClick()
+        compose.onNodeWithTag("choice_COMPASS").performScrollTo().performClick()
+        assertEquals(HeadingSource.COMPASS, settings.race.headingSource)
+        compose.onNodeWithTag("headingSource").performScrollTo().assertTextContains("Compass")
+
+        // Closing the dialog without choosing keeps the one in use.
+        compose.onNodeWithTag("headingSource").performClick()
+        compose.onNodeWithTag("cancel").performClick()
+        assertEquals(HeadingSource.COMPASS, settings.race.headingSource)
+        compose.onNodeWithTag("headingSource").performClick()
+        compose.onNodeWithTag("choice_COURSE_OVER_GROUND").performScrollTo().performClick()
+        assertEquals(HeadingSource.COURSE_OVER_GROUND, settings.race.headingSource)
+    }
+
+    @Test
     fun aboutTextAndCuePolicyDescription() {
         show()
         compose.onNodeWithTag("about").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Sessions are started, ended and cleared on the Session screen. The racing area on the map follows the track. Sail Racing 1.0").assertIsDisplayed()
+        compose.onNodeWithText(
+            "Sessions are started, ended and cleared on the Session screen. The racing area on the map follows the track " +
+                "around the line, the mark and the boat. Sail Racing 1.0",
+        ).assertIsDisplayed()
         assertTrue(CuePolicy().describe().startsWith("on"))
         assertEquals("off", CuePolicy(enabled = false).describe())
     }

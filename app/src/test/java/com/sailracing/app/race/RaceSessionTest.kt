@@ -12,6 +12,7 @@ import com.sailracing.app.sensors.SimulatedSensorSource
 import com.sailracing.app.time.ScaledClock
 import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.model.PositionFix
+import com.sailracing.domain.race.HeadingSource
 import com.sailracing.domain.race.RaceEvent
 import com.sailracing.domain.race.RaceSettings
 import com.sailracing.domain.startline.StartLine
@@ -62,13 +63,11 @@ class RaceSessionTest {
     @Test
     fun restoresPersistedRaceAndSettings() = runTest {
         val clock = SchedulerClock(this)
-        val line = StartLine(GeoPoint(51.14, 5.83), GeoPoint(51.141, 5.83))
-        val mark = GeoPoint(51.145, 5.83)
         val wind = WindSettings(200, 40, 150)
         val running = TimerState.Running(clock.nowMillis() + 60_000)
         val repository = FakeRepository(
             initialSettings = AppSettings(race = RaceSettings(compassOffsetDegrees = 180), keepScreenOn = false),
-            initialRace = PersistedRace(line, mark, wind, running),
+            initialRace = PersistedRace(wind, running),
         )
         val session = session(repository, clock = clock)
         assertEquals(null, session.startedAtMillis.value)
@@ -77,20 +76,45 @@ class RaceSessionTest {
 
         assertTrue(session.isRunning.value)
         assertEquals(clock.nowMillis(), session.startedAtMillis.value)
-        assertEquals(line, session.state.value.startLine)
-        assertEquals(mark, session.state.value.windwardMark)
         assertEquals(wind, session.state.value.wind.settings)
         assertEquals(running, session.state.value.timer)
         assertEquals(180, session.state.value.settings.compassOffsetDegrees)
         assertFalse(session.settings.value.keepScreenOn)
         assertEquals(RacePhase.COUNTDOWN, session.snapshot.value.phase)
         // Restoring must not write anything back.
-        assertTrue(repository.savedLines.isEmpty() && repository.savedWinds.isEmpty() && repository.savedTimers.isEmpty())
-        assertTrue(repository.savedMarks.isEmpty())
+        assertTrue(repository.savedWinds.isEmpty() && repository.savedTimers.isEmpty())
         // Starting twice is harmless.
         session.start()
         session.stop()
         assertFalse(session.isRunning.value)
+        session.stop()
+    }
+
+    /**
+     * A line and a mark belong to the race that is being sailed, not to the phone: whatever was marked
+     * before, every session begins with an empty course.
+     */
+    @Test
+    fun everySessionStartsWithoutALineOrAMark() = runTest {
+        val sensors = FakeSensorSource()
+        val session = session(FakeRepository(), sensors)
+        session.start()
+        runCurrent()
+        sensors.events.tryEmit(RaceEvent.FixReceived(PositionFix(GeoPoint(51.14, 5.83), session.nowMillis(), 3.0, 315.0, 3.0)))
+        runCurrent()
+        session.dispatch(RaceEvent.MarkPinEnd)
+        session.dispatch(RaceEvent.MarkBoatEnd)
+        session.dispatch(RaceEvent.MarkWindwardMark)
+        runCurrent()
+        assertTrue(session.state.value.startLine.isComplete)
+        assertNotNull(session.state.value.windwardMark)
+
+        // Ending and starting again is the next race, not a continuation of the marked one.
+        session.stop()
+        session.start()
+        runCurrent()
+        assertEquals(StartLine(), session.state.value.startLine)
+        assertNull(session.state.value.windwardMark)
         session.stop()
     }
 
@@ -159,12 +183,7 @@ class RaceSessionTest {
         session.dispatch(RaceEvent.MarkWindwardMark)
         session.dispatch(RaceEvent.SetWindDirection(90))
         runCurrent()
-        assertEquals(GeoPoint(51.14, 5.83), repository.savedLines.last().pinEnd)
-        assertEquals(GeoPoint(51.14, 5.83), repository.savedMarks.last())
         assertEquals(90, repository.savedWinds.last().directionDegrees)
-        session.dispatch(RaceEvent.SetWindwardMark(null))
-        runCurrent()
-        assertEquals(listOf(GeoPoint(51.14, 5.83), null), repository.savedMarks)
 
         session.syncCountdown()
         session.dispatch(RaceEvent.StopTimer)
@@ -177,12 +196,12 @@ class RaceSessionTest {
     fun settingsChangesReachTheEngineAndSwitchSensors() = runTest {
         val repository = FakeRepository()
         var created = 0
-        var lastSimulation: SimulationSettings? = null
+        var lastSettings: AppSettings? = null
         val dispatcher = StandardTestDispatcher(testScheduler)
         val clock = SchedulerClock(this)
         val session = RaceSession(
             repository = repository,
-            sensorSourceFactory = { simulation, _ -> created++; lastSimulation = simulation; FakeSensorSource() },
+            sensorSourceFactory = { settings, _ -> created++; lastSettings = settings; FakeSensorSource() },
             cuePlayer = RecordingCuePlayer(),
             scope = this,
             baseClock = clock,
@@ -201,7 +220,7 @@ class RaceSessionTest {
         repository.updateSettings { it.copy(simulation = SimulationSettings(enabled = true, speedFactor = 4.0)) }
         runCurrent()
         assertEquals(2, created)
-        assertEquals(true, lastSimulation?.enabled)
+        assertEquals(true, lastSettings?.simulation?.enabled)
         assertIs<ScaledClock>(session.clock)
         val before = session.nowMillis()
         advanceTimeBy(1_000)
@@ -214,8 +233,14 @@ class RaceSessionTest {
         repository.updateSettings { it.copy(simulation = it.simulation.copy(scenarioId = "oscillating")) }
         runCurrent()
         assertEquals(3, created)
-        assertEquals("oscillating", lastSimulation?.scenarioId)
+        assertEquals("oscillating", lastSettings?.simulation?.scenarioId)
         assertNull(session.state.value.windwardMark)
+
+        // Taking the heading from the compass means another sensor to listen to, so the source is rebuilt.
+        repository.updateSettings { it.copy(race = it.race.copy(headingSource = HeadingSource.COMPASS)) }
+        runCurrent()
+        assertEquals(4, created)
+        assertEquals(HeadingSource.COMPASS, lastSettings?.race?.headingSource)
         session.stop()
         assertEquals(clock, session.clock)
     }
@@ -229,7 +254,9 @@ class RaceSessionTest {
         val result = StandardRaceScenario.build()
         val session = RaceSession(
             repository = repository,
-            sensorSourceFactory = { simulation, sessionClock -> SimulatedSensorSource(result, sessionClock, includeActions = simulation.autoPlayActions, loop = false) },
+            sensorSourceFactory = { settings, sessionClock ->
+                SimulatedSensorSource(result, sessionClock, includeActions = settings.simulation.autoPlayActions, loop = false)
+            },
             cuePlayer = cues,
             scope = this,
             baseClock = clock,
@@ -241,9 +268,8 @@ class RaceSessionTest {
         advanceTimeBy(result.durationMillis + 2_000)
         runCurrent()
 
-        // Everything the scripted sailor did went through the engine and was persisted.
+        // Everything the scripted sailor did went through the engine, and what outlives a session was persisted.
         assertTrue(session.state.value.startLine.isComplete)
-        assertTrue(repository.savedLines.isNotEmpty())
         assertTrue(repository.savedWinds.isNotEmpty())
         assertEquals(TimerState.Idle, session.state.value.timer)
         assertTrue(repository.savedTimers.any { it is TimerState.Running })

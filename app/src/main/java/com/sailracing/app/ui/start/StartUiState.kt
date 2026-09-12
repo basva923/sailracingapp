@@ -15,7 +15,11 @@ data class StartUiState(
     val clock: String = Formatters.PLACEHOLDER,
     val timeToKill: String = Formatters.PLACEHOLDER,
     val urgency: Urgency = Urgency.NEUTRAL,
+    /** Negative once the boat is over the line before the start, when it counts against it. */
     val distanceToLine: String = Formatters.PLACEHOLDER,
+    /** Whether the boat is on the course side of the line before the gun: the distance is then read in red. */
+    val overLine: Boolean = false,
+    /** [overLine] during the countdown itself, when it is worth a warning of its own. */
     val overEarly: Boolean = false,
     val pinSet: Boolean = false,
     val boatSet: Boolean = false,
@@ -50,13 +54,16 @@ data class StartUiState(
             // Kept short: it shares one line with the GPS status on a narrow screen.
             val approach = "Approach ${Formatters.knots(snapshot.approachSpeedMps)} " +
                 if (snapshot.approachSpeedIsMeasured) "(VMG)" else "(default)"
+            // Over the line before the gun the distance is what has to be sailed back: negative, in red.
+            val overLine = snapshot.phase != RacePhase.RACING && line?.side == LineSide.COURSE
             return StartUiState(
                 phase = snapshot.phase,
                 clockLabel = label,
                 clock = clock,
                 timeToKill = ttk?.let(Formatters::signedSeconds) ?: Formatters.PLACEHOLDER,
                 urgency = urgency,
-                distanceToLine = line?.let { Formatters.meters(it.distanceMeters) } ?: Formatters.PLACEHOLDER,
+                distanceToLine = line?.let { (if (overLine) "-" else "") + Formatters.meters(it.distanceMeters) } ?: Formatters.PLACEHOLDER,
+                overLine = overLine,
                 overEarly = snapshot.phase == RacePhase.COUNTDOWN && line?.side == LineSide.COURSE,
                 pinSet = snapshot.startLine.pinEnd != null,
                 boatSet = snapshot.startLine.boatEnd != null,

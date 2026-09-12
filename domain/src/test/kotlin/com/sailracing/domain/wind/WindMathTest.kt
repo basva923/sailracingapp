@@ -2,6 +2,8 @@ package com.sailracing.domain.wind
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class WindMathTest {
 
@@ -44,6 +46,36 @@ class WindMathTest {
         assertEquals(25.0, WindMath.estimatedWindDirection(340.0, settings, referenceDegrees = 25.0))
         assertEquals(TargetHeadings(340.0, 70.0, 245.0, 165.0), WindMath.targetHeadings(settings, referenceDegrees = 25.0))
         assertEquals(340.0, WindMath.targetHeading(settings, WindMath.sailingState(300.0, 25.0), referenceDegrees = 25.0))
+    }
+
+    @Test
+    fun `the measured tack angle replaces the set one in the estimates and the targets`() {
+        assertEquals(3.0, WindMath.estimatedWindDirection(315.0, settings, tackAngleDegrees = 48.0), 1e-9)
+        assertEquals(357.0, WindMath.estimatedWindDirection(45.0, settings, tackAngleDegrees = 48.0), 1e-9)
+        // Downwind the downwind angle still applies.
+        assertEquals(0.0, WindMath.estimatedWindDirection(220.0, settings, tackAngleDegrees = 48.0), 1e-9)
+        assertEquals(TargetHeadings(312.0, 48.0, 220.0, 140.0), WindMath.targetHeadings(settings, tackAngleDegrees = 48.0))
+        assertEquals(312.0, WindMath.targetHeading(settings, SailingState(Tack.STARBOARD, PointOfSail.UPWIND, 45.0), tackAngleDegrees = 48.0))
+    }
+
+    @Test
+    fun `close-hauled is within the band below the tack angle, never beyond a beam reach`() {
+        fun upwind(twa: Double) = SailingState(Tack.STARBOARD, PointOfSail.UPWIND, twa)
+        assertTrue(WindMath.isCloseHauled(upwind(45.0), 45.0, 20))
+        assertTrue(WindMath.isCloseHauled(upwind(65.0), 45.0, 20))
+        assertTrue(WindMath.isCloseHauled(upwind(-65.0), 45.0, 20))
+        assertFalse(WindMath.isCloseHauled(upwind(66.0), 45.0, 20))
+        // Pointing higher than the angle is a lift, not a fault.
+        assertTrue(WindMath.isCloseHauled(upwind(10.0), 45.0, 20))
+        // A wide band on a wide angle still stops at the beam.
+        assertTrue(WindMath.isCloseHauled(upwind(90.0), 70.0, 35))
+        assertFalse(WindMath.isCloseHauled(SailingState(Tack.STARBOARD, PointOfSail.DOWNWIND, 91.0), 70.0, 35))
+        assertFalse(WindMath.isCloseHauled(SailingState(Tack.PORT, PointOfSail.DOWNWIND, -140.0), 45.0, 20))
+
+        assertTrue(WindMath.isOnDownwindAngle(SailingState(Tack.PORT, PointOfSail.DOWNWIND, -140.0), 120))
+        assertTrue(WindMath.isOnDownwindAngle(SailingState(Tack.STARBOARD, PointOfSail.DOWNWIND, 120.0), 120))
+        assertFalse(WindMath.isOnDownwindAngle(SailingState(Tack.STARBOARD, PointOfSail.DOWNWIND, 110.0), 120))
+        assertFalse(WindMath.isOnDownwindAngle(upwind(45.0), 120))
     }
 
     @Test

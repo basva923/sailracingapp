@@ -83,8 +83,6 @@ data class MapUiState(
     val favouredSide: FavouredSide = FavouredSide.UNKNOWN,
     val sideTitle: String = "SIDES UNKNOWN",
     val sideDetail: String = "",
-    /** The evidence for the side in a few words, for the glance panel: "Wind +4° · speed +0.3 · trend -1°". */
-    val sideGlance: String = "",
     val scaleText: String = "",
     val markText: String = "Mark: top of the area until you set it",
     val trackText: String = "No track yet",
@@ -114,7 +112,6 @@ data class MapUiState(
                 favouredSide = plan.favouredSide,
                 sideTitle = PlanText.sideTitle(plan),
                 sideDetail = PlanText.sideDetail(plan),
-                sideGlance = PlanText.sideGlance(plan),
                 trackText = if (snapshot.trackPointCount == 0) "No track yet" else "${snapshot.trackPointCount} points$duration",
                 canMarkHere = snapshot.position != null,
             )

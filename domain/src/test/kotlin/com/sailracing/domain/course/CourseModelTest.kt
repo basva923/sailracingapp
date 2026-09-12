@@ -46,6 +46,23 @@ class CourseModelTest {
     }
 
     @Test
+    fun `the way out to the course is not part of the racing area`() {
+        // The track starts three kilometres downwind, in the harbour, and comes up to the line.
+        val far = Track(listOf(point(0.0, -3_000.0), point(0.0, -2_500.0)) + track.points)
+        val course = CourseModel.build(far, inputs)
+        assertEquals(GridSpec(-50.0, -30.0, 10, 12, 10.0), course.spec)
+        assertEquals(3, course.grid.totalVisits)
+        assertEquals(5, course.trackPositions.size)
+        // Sailed out of sight of the line, the boat itself is the anchor: the area is around it, not the harbour.
+        val away = CourseModel.build(far, inputs.copy(line = StartLine(), boat = frame.toGeo(CoursePosition(0.0, -2_400.0))))
+        assertEquals(2, away.grid.totalVisits)
+        assertTrue(away.spec.bottomMeters <= -3_000.0 && away.spec.topMeters >= -2_400.0, "${away.spec}")
+        // With nothing to anchor on, everything sailed is the area; with nothing at all, a square around the origin.
+        assertEquals(5, CourseModel.build(far, inputs.copy(line = StartLine(), boat = null)).grid.totalVisits)
+        assertEquals(GridSpec(0.0, 0.0, 1, 1, 5.0), CourseModel.build(Track(), inputs.copy(line = StartLine(), boat = null)).spec)
+    }
+
+    @Test
     fun `a set mark is part of the area and the axis`() {
         val mark = frame.toGeo(CoursePosition(-40.0, 495.0))
         val course = CourseModel.build(track, inputs.copy(windwardMark = mark))

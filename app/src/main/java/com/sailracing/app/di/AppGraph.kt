@@ -69,13 +69,14 @@ class DefaultAppGraph(context: Context) : AppGraph {
 
     override val raceSession: RaceSession = RaceSession(
         repository = repository,
-        sensorSourceFactory = { simulationSettings, clock ->
-            if (simulationSettings.enabled) {
-                val scenario = simulationSettings.scenario
+        sensorSourceFactory = { settings, clock ->
+            val simulation = settings.simulation
+            if (simulation.enabled) {
+                val scenario = simulation.scenario
                 val result = simulations.computeIfAbsent(scenario.id) { scenario.build() }
-                SimulatedSensorSource(result, clock, includeActions = simulationSettings.autoPlayActions)
+                SimulatedSensorSource(result, clock, includeActions = simulation.autoPlayActions)
             } else {
-                AndroidSensorSource(appContext)
+                AndroidSensorSource(appContext, settings.race.headingSource)
             } as SensorSource
         },
         cuePlayer = cuePlayer,

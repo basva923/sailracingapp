@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.sailracing.app.ui.theme.RaceColors
 import com.sailracing.domain.strategy.TackAdvice
+import com.sailracing.domain.strategy.UpwindStrategy
 
 /**
  * The room a pane offers its content, after padding. Content that would otherwise size itself from the
@@ -75,16 +76,16 @@ fun AdaptivePanes(
 /**
  * The racing screen's shape: what is looked at while beating, and nothing that scrolls.
  *
- * [main] is the map - or, when the sailor asks for more, the details in its place - and [pinned] the
- * glance panel that stays on the screen whatever [main] does: the advice, the side, the speed and the
- * shift, sized to the room they have rather than to what is written in them. Upright, the panel takes
- * the bottom of the screen ([PINNED_FRACTION] of it, at most [MAX_PINNED_HEIGHT]) and the map the rest;
- * with the phone on its side the map takes the left half and the panel the right, the whole height.
- * Nothing on the screen scrolls, so the helm never finds it left half way down a list.
+ * [main] is the map and [pinned] the panel that stays on the screen whatever [main] does, sized to the
+ * room it has rather than to what is written in it. Upright, the panel takes the bottom of the screen
+ * ([pinnedFraction] of it, at most [MAX_PINNED_HEIGHT]) and the map the rest; with the phone on its side
+ * the map takes the left half and the panel the right, the whole height. Nothing here scrolls of itself,
+ * so the helm never finds the map left half way down a list.
  */
 @Composable
 fun GlanceLayout(
     modifier: Modifier = Modifier,
+    pinnedFraction: Float = PINNED_FRACTION,
     main: @Composable BoxScope.(PaneSize) -> Unit,
     pinned: @Composable ColumnScope.(PaneSize) -> Unit,
 ) {
@@ -101,7 +102,7 @@ fun GlanceLayout(
                 ) { pinned(pane) }
             }
         } else {
-            val pinnedHeight = (height * PINNED_FRACTION).coerceAtMost(MAX_PINNED_HEIGHT)
+            val pinnedHeight = (height * pinnedFraction).coerceAtMost(MAX_PINNED_HEIGHT)
             val mainPane = PaneSize(width - PanePadding * 2, height - pinnedHeight - PanePadding * 2)
             val pinnedPane = PaneSize(width - PanePadding * 2, pinnedHeight - PanePadding * 2)
             Column(modifier = Modifier.fillMaxSize()) {
@@ -155,12 +156,15 @@ fun speedDeltaColor(deltaMps: Double?): Color = when {
 /** A tenth of a knot either way is the same speed. */
 private const val SPEED_DELTA_BAND_MPS = 0.05
 
-/** The colour of a shift relative to the reference wind: amber veered, blue backed. */
+/**
+ * The colour of the shift as the boat feels it: green for a lift, red for a header, white within the dead
+ * band the advice ignores - or when there is no shift to speak of.
+ */
 @Composable
-fun shiftColor(shiftDegrees: Double?): Color = when {
-    shiftDegrees == null -> MaterialTheme.colorScheme.onBackground
-    shiftDegrees > 0 -> RaceColors.Estimated
-    shiftDegrees < 0 -> RaceColors.Info
+fun shiftColor(liftDegrees: Double?): Color = when {
+    liftDegrees == null -> MaterialTheme.colorScheme.onBackground
+    liftDegrees >= UpwindStrategy.SHIFT_DEAD_BAND_DEGREES -> RaceColors.Early
+    liftDegrees <= -UpwindStrategy.SHIFT_DEAD_BAND_DEGREES -> RaceColors.Late
     else -> MaterialTheme.colorScheme.onBackground
 }
 

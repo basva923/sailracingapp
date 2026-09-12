@@ -46,9 +46,18 @@ public data class RaceSnapshot(
     /** The wind everything is judged against: the histogram's centre once measured, the set wind until then. */
     val windReference: WindReference,
     val sailing: SailingState?,
+    /** The wind the boat's heading implies this instant, at the tack (or downwind) angle. */
     val estimatedWindDegrees: Double?,
     /** The estimated wind relative to the reference: positive = veered. */
     val shiftDegrees: Double?,
+    /**
+     * The wind of the moment: the last ten seconds of samples on this tack, so that one wave does not
+     * move it; null off the angle, where a heading says nothing about the wind. It is what the shift
+     * shown and the tack advice are judged from.
+     */
+    val steadyWindDegrees: Double?,
+    /** [steadyWindDegrees] relative to the reference: positive = veered. */
+    val steadyShiftDegrees: Double?,
     /** The close-hauled and downwind headings around the reference wind. */
     val targetHeadings: TargetHeadings,
     val targetHeadingDegrees: Double?,

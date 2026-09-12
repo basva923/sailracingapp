@@ -10,14 +10,24 @@ import com.sailracing.domain.wind.WindHistory
 import com.sailracing.domain.wind.WindReference
 import com.sailracing.domain.wind.WindSettings
 
-/** Everything known about the wind: the sailor's configuration plus the measured statistics. */
+/**
+ * Everything known about the wind: the sailor's configuration plus the measured statistics.
+ *
+ * @property measuredTackAngleDegrees the tack angle last read off the boat's own two tacks, kept while only
+ *   one of them is being sailed; null until both have been.
+ */
 public data class WindState(
     val settings: WindSettings = WindSettings(),
     val histogram: WindHistogram = WindHistogram(),
     val history: WindHistory = WindHistory(),
+    val measuredTackAngleDegrees: Double? = null,
 ) {
-    /** The wind to judge everything against: the histogram's centre once measured, the set wind until then. */
-    public val reference: WindReference get() = WindReference.of(settings, histogram)
+    /**
+     * The wind to judge everything against at [nowMillis]: the bisector of the headings held close-hauled
+     * on the two tacks lately, one of them turned by the tack angle while the other has not been sailed,
+     * and the set wind until either has - see [WindReference].
+     */
+    public fun reference(nowMillis: Long): WindReference = WindReference.of(settings, history, measuredTackAngleDegrees, nowMillis)
 }
 
 /**

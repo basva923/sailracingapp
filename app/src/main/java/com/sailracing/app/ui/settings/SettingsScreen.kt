@@ -33,6 +33,8 @@ import com.sailracing.app.ui.format.Formatters
 import com.sailracing.app.ui.theme.RaceColors
 import com.sailracing.domain.course.GridSettings
 import com.sailracing.domain.race.ApproachSpeed
+import com.sailracing.domain.race.HeadingSource
+import com.sailracing.domain.race.RaceSettings
 import com.sailracing.domain.timer.CuePolicy
 import com.sailracing.simulation.SimulationCatalog
 import java.util.Locale
@@ -42,7 +44,25 @@ class SettingsActions(
     val deleteLogs: () -> Unit = {},
 )
 
-private enum class SettingsDialog { APPROACH_SPEED, TEN_SECOND_WINDOW, SECOND_WINDOW, UPWIND_MAX_TWA, CELL_SIZE, SIM_SPEED, SIM_SCENARIO, DELETE_LOGS }
+private enum class SettingsDialog {
+    APPROACH_SPEED, TEN_SECOND_WINDOW, SECOND_WINDOW, CLOSE_HAULED_BAND, HEADING_SOURCE, CELL_SIZE, SIM_SPEED, SIM_SCENARIO, DELETE_LOGS
+}
+
+/** The two ways of knowing which way the boat points, as the sailor picks between them. */
+private val headingSources = listOf(
+    Choice(
+        HeadingSource.COURSE_OVER_GROUND.name,
+        "GPS course",
+        "Where the boat really goes, drift and current included, wherever the phone lies. It lags about a " +
+            "second, and says nothing while the boat is stopped.",
+    ),
+    Choice(
+        HeadingSource.COMPASS.name,
+        "Compass",
+        "Answers at once and at any speed, and points more precisely - but only with the phone held still, " +
+            "upright on the mast. The GPS course fills in until the compass has a reading.",
+    ),
+)
 
 @Composable
 fun SettingsScreen(
@@ -58,6 +78,7 @@ fun SettingsScreen(
     val approach = race.approachSpeed
     val approachManual = approach is ApproachSpeed.Manual
     val grid = race.course.grid
+    val headingChoice = headingSources.first { it.id == race.headingSource.name }
     val approachSpeedMps = when (approach) {
         is ApproachSpeed.Manual -> approach.speedMps
         is ApproachSpeed.AverageUpwindVmg -> approach.fallbackMps
@@ -117,15 +138,25 @@ fun SettingsScreen(
 
         SectionHeader("Wind and heading")
             ValueRow(
-                title = "Count as upwind up to",
-                value = "${race.upwindMaxTwaDegrees}°",
-                onClick = { dialog = SettingsDialog.UPWIND_MAX_TWA },
-                testTag = "upwindMaxTwa",
+                title = "Close-hauled band",
+                value = "${race.closeHauledBandDegrees}°",
+                subtitle = "How far below the tack angle a heading still counts as close-hauled, for the wind the " +
+                    "boat measures and the advice. Footing in a header is within it; reaching along the line is not.",
+                onClick = { dialog = SettingsDialog.CLOSE_HAULED_BAND },
+                testTag = "closeHauledBand",
+            )
+            ChoiceRow(
+                title = "Heading from",
+                value = headingChoice.title,
+                subtitle = "Which way the boat points, for the wind it measures, the tack it is on and the rose. " +
+                    headingChoice.detail,
+                onClick = { dialog = SettingsDialog.HEADING_SOURCE },
+                testTag = "headingSource",
             )
             SwitchRow(
                 title = "Phone mounted backwards",
                 subtitle = "The compass expects the phone upright on the mast with the screen facing aft. " +
-                    "Switch on when the screen faces the bow. The GPS course is used whenever the boat moves.",
+                    "Switch on when the screen faces the bow. Nothing to set with the GPS course.",
                 checked = race.compassOffsetDegrees == 180,
                 onCheckedChange = { reversed -> actions.update { it.copy(race = it.race.copy(compassOffsetDegrees = if (reversed) 180 else 0)) } },
                 testTag = "phoneReversed",
@@ -215,7 +246,8 @@ fun SettingsScreen(
 
         SectionHeader("About")
             Text(
-                "Sessions are started, ended and cleared on the Session screen. The racing area on the map follows the track. Sail Racing $versionName".trim(),
+                "Sessions are started, ended and cleared on the Session screen. The racing area on the map follows the track " +
+                    "around the line, the mark and the boat. Sail Racing $versionName".trim(),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag("about"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = RaceColors.Muted,
@@ -264,15 +296,26 @@ fun SettingsScreen(
             },
             onDismiss = { dialog = null },
         )
-        SettingsDialog.UPWIND_MAX_TWA -> NumberInputDialog(
-            title = "Count as upwind up to",
-            initialValue = race.upwindMaxTwaDegrees.toDouble(),
-            unit = "° off the wind",
-            range = 30.0..90.0,
+        SettingsDialog.CLOSE_HAULED_BAND -> NumberInputDialog(
+            title = "Close-hauled band",
+            initialValue = race.closeHauledBandDegrees.toDouble(),
+            unit = "° below the tack angle",
+            range = RaceSettings.CLOSE_HAULED_BAND_RANGE.first.toDouble()..RaceSettings.CLOSE_HAULED_BAND_RANGE.last.toDouble(),
             smallStep = 1.0,
             bigStep = 5.0,
             onConfirm = { degrees ->
-                actions.update { it.copy(race = it.race.copy(upwindMaxTwaDegrees = degrees.toInt())) }
+                actions.update { it.copy(race = it.race.copy(closeHauledBandDegrees = degrees.toInt())) }
+                dialog = null
+            },
+            onDismiss = { dialog = null },
+        )
+        SettingsDialog.HEADING_SOURCE -> ChoiceDialog(
+            title = "Where the heading comes from",
+            choices = headingSources,
+            selectedId = race.headingSource.name,
+            onSelect = { id ->
+                val source = HeadingSource.valueOf(id)
+                actions.update { it.copy(race = it.race.copy(headingSource = source)) }
                 dialog = null
             },
             onDismiss = { dialog = null },
@@ -370,7 +413,7 @@ private fun ChoiceRow(title: String, value: String, subtitle: String, onClick: (
 }
 
 @Composable
-private fun ValueRow(title: String, value: String, onClick: () -> Unit, testTag: String) {
+private fun ValueRow(title: String, value: String, onClick: () -> Unit, testTag: String, subtitle: String? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -380,7 +423,10 @@ private fun ValueRow(title: String, value: String, onClick: () -> Unit, testTag:
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = RaceColors.Muted)
+        }
         Text(value, style = MaterialTheme.typography.titleLarge, color = RaceColors.Info)
     }
 }

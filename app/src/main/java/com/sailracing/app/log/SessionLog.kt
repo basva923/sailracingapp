@@ -94,9 +94,12 @@ class FileSessionLog(
 
     override fun end(nowMillis: Long) {
         write(recorder.end(nowMillis))
-        // Closing the queue lets the writer finish what is in it and then close the file.
+        // Closing the queue lets the writer finish what is in it and then close the file. Without a head
+        // nothing more is written: what happens between sessions - a clear, a reset - belongs to no
+        // session, and a file opened for it would carry the head of the one that had just ended.
         sink?.lines?.close()
         sink = null
+        header = null
     }
 
     override suspend fun summary(): String = withContext(dispatcher) { files.summary() }
@@ -112,11 +115,11 @@ class FileSessionLog(
 
     private fun write(record: LogRecord) {
         if (!enabled()) return
+        val head = header ?: return
         val opened = open(record.timeMillis)
-        val head = header
         // Every file starts with what the session was started with, even one opened halfway through a
         // session because the sailor switched logging on.
-        if (opened.fresh && head != null && head !== record) opened.sink.lines.trySend(head.toJsonLine())
+        if (opened.fresh && head !== record) opened.sink.lines.trySend(head.toJsonLine())
         opened.sink.lines.trySend(record.toJsonLine())
     }
 

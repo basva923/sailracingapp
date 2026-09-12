@@ -74,7 +74,14 @@ fun StartScreen(state: StartUiState, actions: StartActions, modifier: Modifier =
                     maxFontSize = secondaryMax,
                     testTag = "timeToKill",
                 )
-                BigValue(label = "To line", value = state.distanceToLine, modifier = Modifier.weight(1f), maxFontSize = secondaryMax, testTag = "distanceToLine")
+                BigValue(
+                    label = "To line",
+                    value = state.distanceToLine,
+                    modifier = Modifier.weight(1f),
+                    color = if (state.overLine) RaceColors.Late else MaterialTheme.colorScheme.onBackground,
+                    maxFontSize = secondaryMax,
+                    testTag = "distanceToLine",
+                )
             }
             if (state.overEarly) {
                 Text(

@@ -29,13 +29,16 @@ public sealed interface ApproachSpeed {
  * Tunables that rarely change during a race.
  *
  * @property minSailingSpeedMps below this speed the boat is considered not sailing; no wind/speed samples are taken.
- * @property courseMinSpeedMps below this speed the GPS course is unreliable and the compass is used instead.
+ * @property courseMinSpeedMps below this speed the GPS course over ground is meaningless: it is not used.
  * @property fixMaxAgeMillis a fix older than this is considered stale.
+ * @property headingSource which of the two the heading is taken from, see [HeadingSource]. The GPS course
+ *   costs nothing extra and needs no mounting; the compass is only read when it is the chosen source.
  * @property compassOffsetDegrees correction added to the compass, e.g. 180 when the phone is mounted backwards.
- * @property upwindMaxTwaDegrees the boat counts as sailing upwind (for the wind histogram and the upwind speed
- *   statistics) at true wind angles up to this. The wind estimate assumes the boat sails its optimal upwind
- *   angle, so only close-hauled-ish sailing is meaningful; reaching along the line before the start would
- *   otherwise pollute the statistics and the time-to-line speed.
+ * @property closeHauledBandDegrees the boat counts as close-hauled (for the wind it measures, the histogram,
+ *   the upwind speed statistics and the tack advice) while it points no more than this below its tack angle
+ *   off the reference wind. The wind estimate assumes the boat sails its close-hauled angle, so only
+ *   close-hauled sailing is meaningful: a boat footing a little in a header still counts, a boat reaching
+ *   along the line before the start does not, or it would pollute the wind and the time-to-line speed.
  * @property downwindMinTwaDegrees the boat counts as sailing downwind (for the downwind speed statistics)
  *   at true wind angles from this up to 180.
  * @property maxSamplingTurnRateDegreesPerSecond no wind/speed sample is taken while the heading changes faster
@@ -48,16 +51,20 @@ public data class RaceSettings(
     val minSailingSpeedMps: Double = 0.5,
     val courseMinSpeedMps: Double = 0.5,
     val fixMaxAgeMillis: Long = 5_000L,
+    val headingSource: HeadingSource = HeadingSource.COURSE_OVER_GROUND,
     val compassOffsetDegrees: Int = 0,
     val cuePolicy: CuePolicy = CuePolicy(),
-    val upwindMaxTwaDegrees: Int = DEFAULT_UPWIND_MAX_TWA,
+    val closeHauledBandDegrees: Int = DEFAULT_CLOSE_HAULED_BAND,
     val downwindMinTwaDegrees: Int = DEFAULT_DOWNWIND_MIN_TWA,
     val maxSamplingTurnRateDegreesPerSecond: Double = DEFAULT_MAX_SAMPLING_TURN_RATE,
     val windHistoryCapacity: Int = 3600,
     val course: CourseSettings = CourseSettings(),
 ) {
     public companion object {
-        public const val DEFAULT_UPWIND_MAX_TWA: Int = 60
+        public const val DEFAULT_CLOSE_HAULED_BAND: Int = 20
+
+        /** The bands the settings screen offers: from strict to a boat that foots a lot. */
+        public val CLOSE_HAULED_BAND_RANGE: IntRange = 10..35
         public const val DEFAULT_DOWNWIND_MIN_TWA: Int = 120
         public const val DEFAULT_MAX_SAMPLING_TURN_RATE: Double = 8.0
     }

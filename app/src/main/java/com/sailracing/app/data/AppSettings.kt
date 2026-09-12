@@ -1,9 +1,7 @@
 package com.sailracing.app.data
 
 import com.sailracing.domain.course.GridSettings
-import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.race.RaceSettings
-import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.timer.TimerState
 import com.sailracing.domain.wind.WindSettings
 import com.sailracing.simulation.SimulationCatalog
@@ -40,10 +38,14 @@ fun AppSettings.withGrid(transform: (GridSettings) -> GridSettings): AppSettings
 /** The square size a sailor who switches off "automatic" starts from. */
 const val DEFAULT_CELL_SIZE_METERS: Double = 50.0
 
-/** Race data that survives an app restart: the line, the windward mark, the wind and a running countdown. */
+/**
+ * Race data that survives an app restart: the wind and a running countdown.
+ *
+ * The start line and the windward mark are deliberately not among them. They are laid afresh for every
+ * race, so a line kept from the last outing would have the app timing the start to a line miles away.
+ * Every session therefore begins with an empty course, see [com.sailracing.app.race.RaceSession.start].
+ */
 data class PersistedRace(
-    val startLine: StartLine = StartLine(),
-    val windwardMark: GeoPoint? = null,
     val wind: WindSettings = WindSettings(),
     val timer: TimerState = TimerState.Idle,
 )

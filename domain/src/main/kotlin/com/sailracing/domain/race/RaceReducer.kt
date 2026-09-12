@@ -11,6 +11,7 @@ import com.sailracing.domain.timer.CueSchedule
 import com.sailracing.domain.timer.TimerState
 import com.sailracing.domain.wind.WindHistory
 import com.sailracing.domain.wind.WindMath
+import com.sailracing.domain.wind.WindReference
 import com.sailracing.domain.wind.WindSample
 import com.sailracing.domain.wind.WindSettings
 import kotlin.math.abs
@@ -55,22 +56,33 @@ public object RaceReducer {
         is RaceEvent.SetDownwindAngle ->
             Transition(withWindSettings(state, state.wind.settings.withDownwindAngle(event.degrees)))
         RaceEvent.SetWindFromPortTack -> Transition(state.navigation.headingDegrees?.let { heading ->
-            val direction = WindMath.windFromPortTack(heading, state.wind.settings.tackAngleDegrees)
+            val direction = WindMath.windFromPortTack(steadyHeading(state, heading), state.wind.settings.tackAngleDegrees)
             withWindSettings(state, state.wind.settings.withDirection(direction))
         } ?: state)
         RaceEvent.SetWindFromStarboardTack -> Transition(state.navigation.headingDegrees?.let { heading ->
-            val direction = WindMath.windFromStarboardTack(heading, state.wind.settings.tackAngleDegrees)
+            val direction = WindMath.windFromStarboardTack(steadyHeading(state, heading), state.wind.settings.tackAngleDegrees)
             withWindSettings(state, state.wind.settings.withDirection(direction))
         } ?: state)
         is RaceEvent.SetWindSettings -> Transition(withWindSettings(state, event.settings))
+        // The statistics go; what the boat is - the tack angle read off its own tacks - stays.
         RaceEvent.ResetWindStatistics -> Transition(
-            state.copy(wind = WindState(settings = state.wind.settings, history = state.wind.history.copy(samples = emptyList()))),
+            state.copy(
+                wind = WindState(
+                    settings = state.wind.settings,
+                    history = state.wind.history.copy(samples = emptyList()),
+                    measuredTackAngleDegrees = state.wind.measuredTackAngleDegrees,
+                ),
+            ),
         )
         RaceEvent.ResetSpeedStatistics -> Transition(state.copy(speedStats = SpeedStats()))
         RaceEvent.ClearTrack -> Transition(state.copy(track = Track(capacity = state.track.capacity)))
         RaceEvent.ClearSession -> Transition(
             RaceState(
-                wind = WindState(settings = state.wind.settings, history = WindHistory(capacity = state.settings.windHistoryCapacity)),
+                wind = WindState(
+                    settings = state.wind.settings,
+                    history = WindHistory(capacity = state.settings.windHistoryCapacity),
+                    measuredTackAngleDegrees = state.wind.measuredTackAngleDegrees,
+                ),
                 navigation = state.navigation,
                 settings = state.settings,
                 track = Track(capacity = state.track.capacity),
@@ -82,6 +94,21 @@ public object RaceReducer {
 
     private fun withWindSettings(state: RaceState, settings: WindSettings): RaceState =
         state.copy(wind = state.wind.copy(settings = settings))
+
+    /**
+     * The heading the wind is set from when the sailor presses a tack button: the boat's heading over the
+     * last twenty seconds on this tack, not the wave it is on right now. The heading of the moment when
+     * there is nothing steadier - the boat has only just settled, or has not been sampled at all.
+     */
+    private fun steadyHeading(state: RaceState, headingDegrees: Double): Double {
+        val latest = state.wind.history.latest ?: return headingDegrees
+        return state.wind.history.steadyHeadingDegrees(
+            nearDegrees = headingDegrees,
+            count = STEADY_HEADING_SAMPLES,
+            sinceMillis = latest.timestampMillis - STEADY_HEADING_WINDOW_MILLIS,
+            maxSpreadDegrees = STEADY_HEADING_SPREAD_DEGREES,
+        ) ?: headingDegrees
+    }
 
     private fun onCompass(state: RaceState, rawHeadingDegrees: Double): RaceState {
         val corrected = Angles.normalize(rawHeadingDegrees + state.settings.compassOffsetDegrees)
@@ -119,8 +146,9 @@ public object RaceReducer {
     /**
      * Records at most one track point per second of fix time, with a wind and speed sample when the boat is
      * actually sailing steadily (moving, and not in the middle of a tack or gybe). Which tack and point of
-     * sail the boat is on is judged against the reference wind (the measured mean once there is one), so a
-     * roughly set wind does not keep one tack out of the statistics.
+     * sail the boat is on is judged against the reference wind (read off the boat's own tacks once there
+     * is one), so a roughly set wind does not keep one tack out of the statistics; a sample only counts
+     * as close-hauled within the close-hauled band of the tack angle, so a reach does not get in either.
      */
     private fun sample(state: RaceState, fix: PositionFix, turning: Boolean): RaceState {
         val second = fix.timestampMillis / 1000
@@ -133,18 +161,17 @@ public object RaceReducer {
         if (speed < state.settings.minSailingSpeedMps || turning) return recorded
 
         val windSettings = state.wind.settings
-        val reference = state.wind.reference.directionDegrees
-        val sailing = WindMath.sailingState(heading, reference)
-        val estimate = WindMath.estimatedWindDirection(heading, windSettings, reference)
-        val twa = abs(sailing.trueWindAngleDegrees)
-        val sailingUpwind = twa <= state.settings.upwindMaxTwaDegrees
-        val sailingDownwind = twa >= state.settings.downwindMinTwaDegrees
+        val reference = state.wind.reference(fix.timestampMillis)
+        val sailing = WindMath.sailingState(heading, reference.directionDegrees)
+        val estimate = WindMath.estimatedWindDirection(heading, windSettings, reference.directionDegrees, reference.tackAngleDegrees)
+        val sailingUpwind = WindMath.isCloseHauled(sailing, reference.tackAngleDegrees, state.settings.closeHauledBandDegrees)
+        val sailingDownwind = WindMath.isOnDownwindAngle(sailing, state.settings.downwindMinTwaDegrees)
         val vmg = WindMath.velocityMadeGood(speed, sailing)
 
         val histogram = if (sailingUpwind) state.wind.histogram + estimate else state.wind.histogram
         val capacity = state.settings.windHistoryCapacity
         val sized = if (state.wind.history.capacity == capacity) state.wind.history else state.wind.history.withCapacity(capacity)
-        val history = sized + WindSample(fix.timestampMillis, estimate, sailingUpwind)
+        val history = sized + WindSample(fix.timestampMillis, estimate, sailingUpwind, heading, sailing.tack, sailingDownwind)
         val stats = when {
             sailingUpwind -> state.speedStats.copy(
                 upwind = state.speedStats.upwind + speed,
@@ -157,13 +184,21 @@ public object RaceReducer {
             else -> state.speedStats
         }
         val tracked = if (sailingUpwind) state.track + point.copy(upwindWindDegrees = estimate) else recorded.track
+        // The tack angle read off the boat's two tacks, this sample included, is kept for the board on
+        // which only one of them is sailed.
+        val measuredTackAngle = WindReference.measuredTackAngleDegrees(windSettings, history, fix.timestampMillis) ?: state.wind.measuredTackAngleDegrees
         return state.copy(
-            wind = state.wind.copy(histogram = histogram, history = history),
+            wind = state.wind.copy(histogram = histogram, history = history, measuredTackAngleDegrees = measuredTackAngle),
             speedStats = stats,
             track = tracked,
             lastSampleSecond = second,
         )
     }
+
+    /** The wind set from a tack is read off this many samples, at most this old, and none from the other tack. */
+    public const val STEADY_HEADING_SAMPLES: Int = 10
+    public const val STEADY_HEADING_WINDOW_MILLIS: Long = 20_000L
+    public const val STEADY_HEADING_SPREAD_DEGREES: Double = 45.0
 
     private fun onTick(state: RaceState, nowMillis: Long): Transition {
         val remaining = CountdownTimer.remainingMillis(state.timer, nowMillis) ?: return Transition(state)

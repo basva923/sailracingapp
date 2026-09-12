@@ -69,7 +69,10 @@ class SessionUiStateTest {
         val ended = SessionUiState.from(engine.snapshot(2_000), running = false, startedAtMillis = startedAt, simulating = false)
         assertEquals(SessionStatus.ENDED, ended.status)
         assertEquals("SESSION ENDED", ended.title)
-        assertEquals("GPS is off, the data is kept. Start again to continue, or clear it for the next race", ended.detail)
+        assertEquals(
+            "GPS is off, the track and the statistics are kept. Starting again is the next race: it begins without a line or a mark",
+            ended.detail,
+        )
         assertEquals("GPS off", ended.gpsStatus)
     }
 

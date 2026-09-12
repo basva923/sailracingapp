@@ -11,31 +11,45 @@ See [Design.md](Design.md) for the original feature design.
 - **Session**: the app opens on the Session screen, the one place to start a session (GPS, wind
   statistics and countdown on), end it (GPS off, data kept) and clear it (line, mark, track and
   statistics forgotten for the next race), with an overview of what the session holds.
-- **Race screen**: built for a helm who looks at it for a second between the telltales and the water, so
-  nothing on it scrolls. The map with the race line fills the top of the screen (the left half on a phone
-  on its side), with what the line costs written along its bottom edge. Under it the glance panel:
-  *HOLD* or *TACK* and *GO LEFT* / *GO RIGHT*, in big coloured words with the reason under each, then the
-  speed against the day's average on that point of sail (green faster, red slower) and the shift from the
-  mean wind with a strip of the histogram showing where the wind sits now. A bar under that carries the
-  race time and *More*, which swaps the map for everything else - the compass rose, all the wind numbers
-  and averages, the wind and mark buttons, the full histogram, the statistics and the map's legend - while
-  the glance panel stays put; *Map* brings the map back. A *Fit* button appears on the map while it is zoomed.
+- **Race screen**: built for a helm who looks at it for a second between the telltales and the water,
+  from the back of the boat, so nothing on it scrolls and nothing on it is pressed. Four things, each on
+  a line of its own and as big as its share of the screen allows: *TACK* or *STAY* with the reason under
+  it, the speed against the day's average on that point of sail (green faster, red slower), the heading
+  with the tack it is on, and the shift as the boat feels it - **+ and green for a lift, − and red for a
+  header**, on either tack, upwind or down - over a strip of the histogram showing where the wind sits
+  now, seen from the boat too (a lift to the right). The shift and the advice are read off the last ten
+  seconds on the tack, not the last fix, so a wave does not move them. A bar under them carries the race
+  time. On a phone on its side the word and the shift take the left half, the numbers the right.
+- **Wind screen**: the same advice with the whole of its reason, the set, mean and measured winds, the
+  compass rose with the VMG and the heading, the averages, the buttons that set the wind - from your
+  heading on either tack, or by hand - and the tack and downwind angles, the measured tack angle to set
+  it by, and the statistics: the histogram the shifts are judged against and the shifts themselves.
 - **Wind**: enter a rough direction manually, or sail close-hauled and press *Starboard tack* / *Port tack*
-  to derive it from your heading and the configured tack angle. While sailing upwind the app builds a
-  histogram of the estimated wind direction, a shift history and average upwind/downwind speed and VMG.
-  The set wind is only a seed: once the histogram has 30 samples its weighted centre is the *reference
-  wind* for everything (which tack you are on, the advice, the target headings, the map).
+  to derive it from your heading over the last twenty seconds and the configured tack angle. While
+  close-hauled the app builds a histogram of the estimated wind direction, a shift history and average
+  upwind/downwind speed and VMG. The set wind is only a seed: the *reference wind* everything is judged
+  against (which tack you are on, the advice, the target headings, the map) is the **median of the
+  histogram** - of the wind measured close-hauled over the last half hour - so that half of what was
+  measured is veered from it and half backed, and a reach that got counted cannot pull it far. The
+  heading held close-hauled on starboard and the one held on port lie two tack angles apart; half of
+  that is the tack angle the boat really sails, shown on the wind screen to set the tack angle by. A
+  heading only counts as close-hauled within the *close-hauled band* (*Settings*, 20° by default) below
+  the tack angle, so footing in a header counts and reaching along the line before the start does not.
 - **Countdown**: 5, 4 or 1 minute starts, *Sync* to the nearest minute, beeps every minute, every 10 s in the
   last two minutes, every second in the last 10 s and a burst at the gun (with vibration).
-- **Start**: distance to the line, time to kill (green = early, red = late) and an *over the line* warning.
-- **Tack advice**: the wind is assumed to keep oscillating over the histogram, so its weighted centre is the
-  wind to beat against. On the lifted tack the screen says *HOLD*, when headed it says *TACK* (or *GYBE*
+- **Start**: distance to the line, time to kill (green = early, red = late) and an *over the line*
+  warning; over the line before the gun the distance is negative and red.
+- **Tack advice**: the wind is assumed to keep oscillating around the reference wind, so that is the
+  wind to beat against. On the lifted tack the screen says *STAY*, when headed it says *TACK* (or *GYBE*
   downwind), with the shift in degrees. The helm steers to the sails; the app only calls the tacks.
   At the starting gun the app switches to the race screen by itself.
-- **Map**: a drawn (not downloaded) wind-up map whose racing area follows the track: its bounding box
-  (with the line, the boat and the mark) in squares of 5 m or a multiple of it - automatically, or the
-  size set under *Settings → Map* (5 m to 200 m). It is drawn as big as the room allows, the whole area at
-  one scale; pinch to zoom, drag to move, double tap (or the *Fit* button) to fit the area again. Over that
+- **Map screen**: a drawn (not downloaded) wind-up map whose racing area follows the track: its bounding
+  box (with the line, the boat and the mark) in squares of 5 m or a multiple of it - automatically, or the
+  size set under *Settings → Map* (5 m to 200 m). Only the track within 2 km of the line, the mark or the
+  boat is part of it: the sail out from the harbour is not the course. It is drawn as big as the room
+  allows, the whole area at one scale; pinch to zoom, drag to move, double tap (or the *Fit* button) to
+  fit the area again. Under it (beside it on a phone on its side) which side pays and why, what the
+  race line and the flyer cost, the mark and the track with their buttons, and the legend. Over the
   fine grid lie the **big squares the wind is worked out in** - three across the course and as many rows as
   it is tall - each with an arrow of the wind measured there, solid where enough of it was measured and
   faint where nobody has sailed; amber veered, blue backed.
@@ -62,7 +76,8 @@ See [Design.md](Design.md) for the original feature design.
   [docs/RACE_LINE_GALLERY.md](docs/RACE_LINE_GALLERY.md) has ten worked examples in pictures.
 - **Best side**: the app compares the wind and boat speed measured on the left and right of the line from
   the start to the mark, adds the recent trend of the wind, and says *GO LEFT*, *GO RIGHT* or *SIDES EVEN*,
-  with the numbers behind it. Sail towards the side the wind is shifted to.
+  with the numbers behind it, on the map screen (the map highlights the side too). Sail towards the side
+  the wind is shifted to.
 - **Simulation mode**: a scripted boat sails instead of the GPS, so every feature can be tried on the couch.
   Eleven of them to choose from in *Settings*: the complete race the app has always had, and ten **practice
   sessions** that sail **five windward-leeward laps before they start**, each in a different realistic
@@ -75,10 +90,15 @@ See [Design.md](Design.md) for the original feature design.
   second everything the app made of them - is written to a file per session in
   `Android/data/com.sailracing.app/files/sessions`, to go through afterwards or replay through the engine.
   See [docs/LOGGING.md](docs/LOGGING.md); it can be switched off, sized up and deleted in *Settings*.
+  Nothing is written between an end and the next start.
 - Pure black AMOLED theme, big glove-friendly buttons, text that scales to the screen, landscape support,
   a foreground service so GPS and beeps keep running with the screen off.
-- The compass expects the phone to stand upright on the mast with the screen facing aft; a flat phone
-  falls back to its top edge.
+- **Heading from the GPS course or from the compass**, whichever suits how the phone is carried (*Settings*).
+  The GPS course asks nothing of where the phone lies but says nothing while the boat is stopped; the compass
+  answers at once and more precisely, and expects the phone upright on the mast with the screen facing aft
+  (a flat phone falls back to its top edge).
+- **Every session starts on a clean course**: the pin end, the boat end and the windward mark are marked for
+  the race that is about to be sailed, never carried over from the last one.
 
 ## Project layout
 
@@ -123,12 +143,15 @@ line should make of each.
 
 ## Conventions
 
-- Wind direction is where the wind comes *from*, compass degrees. The *reference wind* is the histogram's
-  weighted centre once it has 30 samples, the set wind until then.
+- Wind direction is where the wind comes *from*, compass degrees. The *reference wind* is the circular
+  median of the wind estimates measured close-hauled over the last half hour (30 samples at least), and
+  the set wind until then.
 - Starboard tack: wind over the starboard side, so heading = wind - angle; port: heading = wind + angle.
-- A positive shift is a veer (clockwise). Positive time to kill means you are early.
+- Inside the app a positive shift is a veer (clockwise); on the race screen the shift is shown as the boat
+  feels it, positive for a lift. Positive time to kill means you are early.
 - Upwind a veer lifts starboard and heads port; downwind it is the other way round.
 - The map frame is wind up (the reference wind) with its origin at the middle of the start line; "right"
-  is to the right when looking upwind. The racing area is the bounding box of the track, not a setting; the
-  size of the squares it is cut into is one (*Settings → Map*), and nothing measured is lost by changing it.
+  is to the right when looking upwind. The racing area is the bounding box of the track within 2 km of
+  the line, the mark and the boat, not a setting; the size of the squares it is cut into is one
+  (*Settings → Map*), and nothing measured is lost by changing it.
 - Speeds are metres per second internally and knots on screen.

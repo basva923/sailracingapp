@@ -50,6 +50,8 @@ class RaceCalculatorTest {
         assertNull(snapshot.sailing)
         assertNull(snapshot.estimatedWindDegrees)
         assertNull(snapshot.shiftDegrees)
+        assertNull(snapshot.steadyWindDegrees)
+        assertNull(snapshot.steadyShiftDegrees)
         assertNull(snapshot.targetHeadingDegrees)
         assertNull(snapshot.headingErrorDegrees)
         assertNull(snapshot.vmgMps)
@@ -95,6 +97,8 @@ class RaceCalculatorTest {
         assertEquals(PointOfSail.UPWIND, sailing.pointOfSail)
         assertEquals(5.0, assertNotNull(snapshot.estimatedWindDegrees))
         assertEquals(5.0, assertNotNull(snapshot.shiftDegrees))
+        assertEquals(5.0, assertNotNull(snapshot.steadyWindDegrees), 1e-9)
+        assertEquals(5.0, assertNotNull(snapshot.steadyShiftDegrees), 1e-9)
         assertEquals(315.0, snapshot.targetHeadingDegrees)
         assertEquals(5.0, assertNotNull(snapshot.headingErrorDegrees))
         assertEquals(3.0 * Math.cos(Math.toRadians(40.0)), assertNotNull(snapshot.vmgMps), 1e-9)
@@ -173,6 +177,49 @@ class RaceCalculatorTest {
         assertEquals(0.0, assertNotNull(snapshot.shiftDegrees), 1e-9)
         assertEquals(25.0, assertNotNull(snapshot.course).frame.windDirectionDegrees, 1e-9)
         assertEquals(TackAdvice.EITHER, snapshot.plan.tackAdvice)
+    }
+
+    @Test
+    fun `the shift shown is steadied over the last samples on the tack, the rose's estimate is not`() {
+        var state = RaceReducer.reduce(RaceState(startLine = line), RaceEvent.SetWindDirection(0)).state
+        for (t in 1L..9L) state = RaceReducer.reduce(state, RaceEvent.FixReceived(fix(t * 1_000, point = belowCenter, courseDegrees = 315.0))).state
+        // A wave knocks the boat to 322 for one fix: the estimate follows it, the shift barely moves.
+        state = RaceReducer.reduce(state, RaceEvent.FixReceived(fix(10_000, point = belowCenter, courseDegrees = 322.0))).state
+        val knocked = RaceCalculator.snapshot(state, nowMillis = 10_000)
+        assertEquals(7.0, assertNotNull(knocked.estimatedWindDegrees), 1e-9)
+        assertEquals(7.0, assertNotNull(knocked.shiftDegrees), 1e-9)
+        assertEquals(0.7, assertNotNull(knocked.steadyWindDegrees), 0.01)
+        assertEquals(0.7, assertNotNull(knocked.steadyShiftDegrees), 0.01)
+        assertEquals(0.7, assertNotNull(knocked.plan.shiftFromReferenceDegrees), 0.01)
+        assertEquals(TackAdvice.EITHER, knocked.plan.tackAdvice)
+        // Off the angle there is no steady wind and no shift to judge; the rose still has its estimate.
+        val reaching = RaceReducer.reduce(state, RaceEvent.FixReceived(fix(11_000, point = belowCenter, courseDegrees = 280.0))).state
+        val reach = RaceCalculator.snapshot(reaching, nowMillis = 11_000)
+        assertEquals(325.0, assertNotNull(reach.estimatedWindDegrees), 1e-9)
+        assertNull(reach.steadyWindDegrees)
+        assertNull(reach.steadyShiftDegrees)
+        assertEquals(TackAdvice.UNKNOWN, reach.plan.tackAdvice)
+        // Steadied on the downwind angle too, and with the heading alone when nothing was sampled on it yet.
+        val running = RaceReducer.reduce(state, RaceEvent.FixReceived(fix(11_000, point = belowCenter, courseDegrees = 230.0))).state
+        assertEquals(10.0, assertNotNull(RaceCalculator.snapshot(running, nowMillis = 11_000).steadyWindDegrees), 1e-9)
+        val unsampled = RaceState(navigation = NavigationState(lastFix = fix(1_000, courseDegrees = 230.0), headingDegrees = 230.0, headingSource = HeadingSource.COURSE_OVER_GROUND))
+        assertEquals(10.0, assertNotNull(RaceCalculator.snapshot(unsampled, nowMillis = 1_000).steadyWindDegrees), 1e-9)
+    }
+
+    @Test
+    fun `the tack angle read off both tacks is measured, while the set one steers the targets and the race line`() {
+        var state = RaceReducer.reduce(RaceState(startLine = line), RaceEvent.SetWindDirection(10)).state
+        for (t in 1L..30L) state = RaceReducer.reduce(state, RaceEvent.FixReceived(fix(t * 1_000, point = belowCenter, courseDegrees = 312.0))).state
+        state = RaceReducer.reduce(state, RaceEvent.FixReceived(fix(31_000, point = belowCenter, courseDegrees = 48.0))).state
+        for (t in 32L..61L) state = RaceReducer.reduce(state, RaceEvent.FixReceived(fix(t * 1_000, point = belowCenter, courseDegrees = 48.0))).state
+        val snapshot = RaceCalculator.snapshot(state, nowMillis = 62_000)
+        assertEquals(0.0, snapshot.windReference.directionDegrees, 1e-9)
+        assertEquals(45.0, snapshot.windReference.tackAngleDegrees, 1e-9)
+        assertEquals(48.0, assertNotNull(snapshot.windReference.measuredTackAngleDegrees), 1e-9)
+        assertEquals(315.0, snapshot.targetHeadings.starboardUpwind, 1e-9)
+        assertEquals(45.0, assertNotNull(snapshot.targetHeadingDegrees), 1e-9)
+        assertEquals(3.0, assertNotNull(snapshot.estimatedWindDegrees), 1e-9)
+        assertEquals(45, assertNotNull(snapshot.course).inputs.tackAngleDegrees)
     }
 
     @Test

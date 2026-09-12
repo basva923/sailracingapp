@@ -86,7 +86,8 @@ class StartScreenTest {
                 clock = "04:37",
                 timeToKill = "+12 s",
                 urgency = Urgency.EARLY,
-                distanceToLine = "85 m",
+                distanceToLine = "-85 m",
+                overLine = true,
                 overEarly = true,
             ),
         )

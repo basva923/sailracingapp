@@ -95,6 +95,11 @@ public object UpwindStrategy {
     /** A 1 degree lift is worth about 1.6 % of upwind VMG at a 45 degree tack angle. */
     public const val PERCENT_SPEED_PER_DEGREE: Double = 1.6
 
+    /**
+     * @param estimatedWindDegrees the wind the boat is measuring now, steadied over its last few samples.
+     * @param onAngle whether the boat is close-hauled or on its downwind angle, so that the estimate means
+     *   something; off the angle there is no shift and no advice.
+     */
     public fun plan(
         windReference: WindReference,
         histogram: WindHistogram,
@@ -102,17 +107,12 @@ public object UpwindStrategy {
         sailing: SailingState?,
         estimatedWindDegrees: Double?,
         grid: TrackGrid?,
-        upwindMaxTwaDegrees: Int,
-        downwindMinTwaDegrees: Int,
+        onAngle: Boolean,
     ): UpwindPlan {
         val measured = windReference.isMeasured
         val reference = windReference.directionDegrees
 
-        val onAngle = sailing != null && when (sailing.pointOfSail) {
-            PointOfSail.UPWIND -> abs(sailing.trueWindAngleDegrees) <= upwindMaxTwaDegrees
-            PointOfSail.DOWNWIND -> abs(sailing.trueWindAngleDegrees) >= downwindMinTwaDegrees
-        }
-        val shift = if (onAngle && estimatedWindDegrees != null) Angles.signedDifference(reference, estimatedWindDegrees) else null
+        val shift = if (onAngle && sailing != null && estimatedWindDegrees != null) Angles.signedDifference(reference, estimatedWindDegrees) else null
         val favouredTack = shift?.takeIf { abs(it) >= SHIFT_DEAD_BAND_DEGREES }?.let { s ->
             val veered = s > 0.0
             // Upwind the lifted tack has the wind shifted towards its side; downwind it is the other way round.

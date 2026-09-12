@@ -109,7 +109,12 @@ public class CourseModel private constructor(
             val boatEnd = inputs.line.boatEnd?.let(frame::toCourse)
             val setMark = inputs.windwardMark?.let(frame::toCourse)
             val boat = inputs.boat?.let(frame::toCourse)
-            val spec = GridSpec.covering(positions + listOfNotNull(pinEnd, boatEnd, setMark, boat, CoursePosition(0.0, 0.0)), inputs.settings.grid)
+            // The racing area is where the race is: around the line, the mark and the boat. The track out
+            // to it from the harbour is not part of it - an area that covered a sail of several miles
+            // would be cut into squares too big to say anything about the wind on the course.
+            val anchors = listOfNotNull(pinEnd, boatEnd, setMark, boat)
+            val nearby = if (anchors.isEmpty()) positions else positions.filter { position -> anchors.any { within(position, it) } }
+            val spec = GridSpec.covering((nearby + anchors).ifEmpty { listOf(CoursePosition(0.0, 0.0)) }, inputs.settings.grid)
             val mark = setMark ?: spec.topCenter
             val grid = TrackGrid.build(track, frame, spec, mark)
             val field = WindField.build(track, frame, spec, inputs.settings.windField)
@@ -127,6 +132,18 @@ public class CourseModel private constructor(
                 )
             } ?: RaceLinePlan.NONE
             return CourseModel(track, inputs, spec, grid, field, thin(positions), pinEnd, boatEnd, boat, mark, setMark != null, plan)
+        }
+
+        /**
+         * How far from the line, the mark or the boat the track still counts as part of the racing area:
+         * further than a long beat away it is the way here, not the course.
+         */
+        public const val RACING_REACH_METERS: Double = 2_000.0
+
+        private fun within(position: CoursePosition, anchor: CoursePosition): Boolean {
+            val across = position.acrossMeters - anchor.acrossMeters
+            val upwind = position.upwindMeters - anchor.upwindMeters
+            return across * across + upwind * upwind <= RACING_REACH_METERS * RACING_REACH_METERS
         }
 
         private fun thin(positions: List<CoursePosition>): List<CoursePosition> {

@@ -7,8 +7,11 @@ import com.sailracing.domain.course.RaceLinePlan
 import com.sailracing.domain.geo.Geo
 import com.sailracing.domain.geo.GeoPoint
 import com.sailracing.domain.model.PositionFix
+import com.sailracing.domain.race.HeadingSource
 import com.sailracing.domain.race.RaceEngine
 import com.sailracing.domain.race.RaceEvent
+import com.sailracing.domain.race.RaceSettings
+import com.sailracing.domain.race.RaceState
 import com.sailracing.domain.startline.StartLine
 import com.sailracing.domain.strategy.FavouredSide
 import com.sailracing.domain.strategy.TackAdvice
@@ -51,7 +54,6 @@ class MapUiStateTest {
         assertEquals(FavouredSide.UNKNOWN, state.favouredSide)
         assertEquals("SIDES UNKNOWN", state.sideTitle)
         assertEquals("Sail upwind on both sides to compare them (0 left, 0 right samples)", state.sideDetail)
-        assertEquals("Sail both sides · 0 L / 0 R", state.sideGlance)
         assertEquals("", state.raceLineGlance)
         assertEquals("", state.scaleText)
         assertEquals("Mark: top of the area until you set it", state.markText)
@@ -189,7 +191,8 @@ class MapUiStateTest {
 
     @Test
     fun theFrameTurnsWithTheWind() {
-        val engine = RaceEngine()
+        // The heading comes from the compass here, so it counts without the boat moving.
+        val engine = RaceEngine(RaceState(settings = RaceSettings(headingSource = HeadingSource.COMPASS)))
         engine.dispatch(RaceEvent.SetStartLine(StartLine(pin, boatEnd)))
         engine.dispatch(RaceEvent.SetWindDirection(90))
         engine.dispatch(RaceEvent.CompassUpdated(45.0))

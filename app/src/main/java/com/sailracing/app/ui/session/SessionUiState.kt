@@ -42,7 +42,7 @@ data class SessionUiState(
             val simulation = if (simulating) " · simulating a race" else ""
             val (title, detail) = when (status) {
                 SessionStatus.RUNNING -> "SESSION RUNNING" to "GPS, wind statistics and countdown are on since $since$simulation"
-                SessionStatus.ENDED -> "SESSION ENDED" to "GPS is off, the data is kept. Start again to continue, or clear it for the next race$simulation"
+                SessionStatus.ENDED -> "SESSION ENDED" to "GPS is off, the track and the statistics are kept. Starting again is the next race: it begins without a line or a mark$simulation"
                 SessionStatus.NONE -> "NO SESSION" to "Start a session to switch on the GPS and begin measuring the wind$simulation"
             }
             val accuracy = snapshot.accuracyMeters
